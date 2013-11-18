@@ -1,0 +1,38 @@
+<html ng-app="myApp" keyboard-events>
+	<head>
+		<link rel="stylesheet" type="text/css" href="index.css">
+		<link rel="stylesheet" type="text/css" href="spinner.css">
+		<link href="//netdna.bootstrapcdn.com/font-awesome/3.2.1/css/font-awesome.css" rel="stylesheet">
+	</head>
+	<body>
+	<div id="headerControls">
+		<div class="spinner" data-bind="visible: isLoading">
+			<div class="b red" ><div></div></div>
+			<div class="b blue" ><div></div></div>
+			<div class="b yellow" ><div></div></div>
+			<div class="b green" ><div></div></div>
+		</div>
+	</div>
+	<div id="container" ng-controller="GalleryController" autoload-content-on-scroll>
+		<div id="autopageContent">
+			<ul bindonce bo-id="'photorow_' + photoRows.indexOf(photoRow)" class="photoRow" ng-repeat="photoRow in photoRows">
+				<li ng-if="photoRow.alive<30" ng-repeat="photo in photoRow.images" class="imageHolder">
+					<img bo-id="photo.id" bo-src="photo.src" ng-dblclick="onImageDblClick(photo, $event)" on-finish-image-render>
+					<div ng-if="photo.xpanded" class="controlPanel">
+						<a bo-href="photo.o" class="originalLink"><i class="icon-external-link-sign"></i></a>
+					</div>
+				</li>
+			</ul>
+		</div>
+	</div>
+	<script src="angular-1.2.0.min.js"></script>
+	<script src="knockout-3.0.0.js"></script>
+	<script src="jquery-2.0.3.min.js"></script>
+	<script src="jquery-ui-1.10.3.custom.min.js"></script>
+	<script src="jquery.ba-throttle-debounce.min.js"></script>
+	<script src="firebase.js"></script>
+	<script src="bindonce.js"></script>
+	<script src="md5.js"></script>
+	<script src="app.js"></script>
+	</body>
+</html>

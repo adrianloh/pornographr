@@ -1,0 +1,67 @@
+body {
+	background-color: #000;
+}
+
+ul {
+	list-style-type: none;
+	margin: 0;
+}
+
+li {
+	display: inline-block;
+}
+
+img {
+	-webkit-transition: all .25s ease-in-out;
+}
+
+#container {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 100%;
+	height: 100%;
+	overflow-y: auto;
+	overflow-x: hidden;
+}
+
+#autopageContent {
+	width: 94%; /* When expanding photos, makes the "spilling" over to next row look nicer */
+}
+
+.imageHolder {
+	margin: 1px;
+	cursor: pointer;
+	vertical-align: top;
+	border: 1px solid black;
+	-webkit-transition: all 0.5s ease;
+	-moz-transition: all 0.5s ease;
+	-o-transition: all 0.5s ease;
+	-ms-transition: all 0.5s ease;
+	transition: all 0.5s ease;
+	background-color: rgb(244, 255, 10);
+}
+
+.controlPanel {
+	position: relative;
+	left: 0;
+	height: 20px;
+	background: rgb(117, 117, 117);
+	border: 1px solid rgb(100, 100, 100);
+}
+
+.originalLink {
+	margin-left: 5px;
+	margin-top: 3px;
+	position: absolute;
+	text-decoration: none;
+	color: rgb(54, 61, 73);
+}
+
+img.ui-selecting {
+	-webkit-filter: opacity(0.3) brightness(1.5) saturate(2.0);
+}
+
+img.ui-selected {
+	-webkit-filter: opacity(0.7) contrast(1.4);
+}
