@@ -1,68 +1,6 @@
-CONSUMER_KEY="723cf7cc038ef544e04f58eeb4a6bf1c";
-CONSUMER_SECRET="6020cfcb85a6b712";
-
-// --------------------- UTILITIES ------------------------- //
-
-function uuid() {
-	var S4 = function () {
-		return Math.floor(
-			Math.random() * 0x10000 /* 65536 */
-		).toString(16);
-	};
-	return (
-		S4() + S4() + "-" +
-			S4() + "-" +
-			S4() + "-" +
-			S4() + "-" +
-			S4() + S4() + S4()
-		);
+function has_key(o,k) {
+	return !(o[k]===undefined);
 }
-
-function sign(params) {
-	var data = [CONSUMER_SECRET],
-		unsortedKeys = [],
-		key;
-	for (key in params) {
-		unsortedKeys.push(key);
-	}
-	unsortedKeys.sort().forEach(function(key) {
-		data.push(key);
-		data.push(params[key]);
-	});
-	return MD5(data.join(""));
-}
-
-var path="http://www.flickr.com/services/rest/";
-var data = {
-	oauth_nonce: uuid(),
-	oauth_timestamp: Date.now(),
-	oauth_consumer_key: CONSUMER_KEY,
-	oauth_signature_method: "HMAC-SHA1",
-	oauth_callback: "fuckerall",
-	oauth_version: "1.0"
-};
-
-var keys = {
-		arrow_right: 39,
-		arrow_left: 37,
-		spacebar: 32,
-		enter: 13,
-		del: 46,
-		backspace: 81112, // Don't intercept backspace, too risky
-		alpha_o: 79,
-		alpha_p: 80,
-		alpha_q: 81,
-		alpha_i: 73,
-		pageUp: 33,
-		pageDown: 34,
-		end: 35,
-		home: 36,
-		arrow_up: 38,
-		arrow_down: 40,
-		tilde: 192,
-		esc: 27
-	},
-	boundKeys = $.map(keys, function(o) { return o; });
 
 var HeaderControls = (function() {
 	var self = {};
@@ -76,14 +14,14 @@ ko.applyBindings(HeaderControls, document.getElementById("headerControls"));
 
 var firebase = new Firebase('https://oogly.firebaseio-demo.com/');
 
-var app = angular.module('myApp', ['pasvaz.bindonce']);
+var Pornographr = angular.module('Pornographr', ['flickrFactory', 'pasvaz.bindonce']);
 
-app.config(function ($anchorScrollProvider, $locationProvider) {
+Pornographr.config(function ($anchorScrollProvider, $locationProvider) {
 	$locationProvider.html5Mode(true);
 	$anchorScrollProvider.disableAutoScrolling();
 });
 
-app.directive('onFinishImageRender', function ($timeout, flickrFactory) {
+Pornographr.directive('onFinishImageRender', function ($timeout, flickrFactory) {
 	return {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
@@ -99,7 +37,153 @@ app.directive('onFinishImageRender', function ($timeout, flickrFactory) {
 	}
 });
 
-app.directive('autoloadContentOnScroll', function ($timeout, $location, flickrFactory) {
+Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrFactory) {
+	return {
+		restrict: 'A',
+		link: function(scope, element, attrs) {
+			var keys = {
+					arrow_right: 39,
+					arrow_left: 37,
+					spacebar: 32,
+					enter: 13,
+					del: 46,
+					backspace: 8,
+					alpha_o: 79,
+					alpha_p: 80,
+					alpha_q: 81,
+					alpha_i: 73,
+					pageUp: 33,
+					pageDown: 34,
+					end: 35,
+					home: 36,
+					arrow_up: 38,
+					arrow_down: 40,
+					tilde: 192,
+					esc: 27,
+					plus: 187,
+					backslash: 191
+				},
+				boundKeyCodes = {},
+				alphabets = {};
+			for (var k in keys) {
+				boundKeyCodes[keys[k]] = true;
+			}
+			for (var i=65;i<91;i++) {
+				alphabets[i] = true;
+				boundKeyCodes[i] = true;
+			}
+
+			var el = $("#tagInputBoxHolder"),
+				input = $("#tagInputBox");
+			$document.on("keydown", function(e) {
+				var keyCode = e.keyCode;
+				if (has_key(boundKeyCodes, keyCode)) {
+					if (has_key(alphabets, keyCode)) {
+						if (!el.is(":visible")) {
+							el.show();
+							input.focus();
+						} else {
+							if ($(document.activeElement)[0].tagName.toLowerCase()!=='input') {
+								input.val("");
+								input.focus();
+							}
+						}
+					} else {
+						switch (keyCode)
+						{
+							case keys.backslash:
+								el.blur().hide();
+								input.val("");
+								e.preventDefault();
+								break;
+							case keys.tilde:
+								flickrFactory.fetchMoreImages($scope, true);
+								e.preventDefault();
+								break;
+							case keys.esc:
+								$(".ui-selected").removeClass("ui-selected");
+								e.preventDefault();
+								break;
+							case keys.spacebar:
+								if ($(document.activeElement)[0].tagName.toLowerCase()!=='input') {
+									e.preventDefault();
+								}
+								break;
+							case keys.backspace:
+								if ($(document.activeElement)[0].tagName.toLowerCase()!=='input') {
+									e.preventDefault();
+								}
+								break;
+						}
+					}
+				}
+			});
+		}
+	}
+});
+
+Pornographr.directive('selectionInteractions', function (tagService, flickrFactory) {
+	return {
+		restrict: 'A',
+		link: function(scope, element, attrs) {
+			// Enable selecting images that are visible
+			var _selectRange = false, _deselectQueue = [];
+
+			$(element).selectable({
+				filter: ".imageInView",
+				selected: function(event, ui) {
+				//	console.log(ui);
+				},
+				selecting: function (event, ui) {
+					if (event.detail == 0) {
+						_selectRange = true;
+						return true;
+					}
+					if (tagService.activeTag.length>0) {
+						// If a tag is armed
+						var tag = tagService.activeTag,
+							photoId = ui.selecting.id;
+						// If this image is already tagged with this keyword...
+						if (has_key(flickrFactory.tags, tag)
+							&& has_key(flickrFactory.tags[tag], photoId)) {
+							$("#holder_" + photoId).addClass("imageHolderOK");
+						} else {
+							flickrFactory.tagImage(photoId, tag).then(function(resObject) {
+								var res = resObject.data;
+								if (res.stat==='ok') {
+									flickrFactory.addTag(tag, 1, photoId);
+									$("#holder_" + photoId).addClass("imageHolderOK");
+								} else {
+									$("#holder_" + photoId).addClass("imageHolderError");
+								}
+							});
+						}
+					} else {
+						if ($(ui.selecting).hasClass('ui-selected')) {
+							_deselectQueue.push(ui.selecting);
+						}
+					}
+				},
+				unselecting: function (event, ui) {
+					$(ui.unselecting).addClass('ui-selected');
+				},
+				stop: function () {
+					if (!_selectRange) {
+						$.each(_deselectQueue, function (ix, de) {
+							$(de)
+								.removeClass('ui-selecting')
+								.removeClass('ui-selected');
+						});
+					}
+					_selectRange = false;
+					_deselectQueue = [];
+				}
+			});
+		}
+	}
+});
+
+Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, flickrFactory, $rootScope) {
 	return {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
@@ -109,6 +193,20 @@ app.directive('autoloadContentOnScroll', function ($timeout, $location, flickrFa
 				applyChanges = $timeout(function() {
 					scope.$apply();
 				});
+			function isInsideViewport(top) {
+				return -10<top==top<WINDOW_HEIGHT;
+			}
+			var WINDOW_HEIGHT = $(window).height(),
+				selectableClassName = "imageInView";
+			resultsSection.scroll($.debounce(750, function() { // This regulates the amount of times this function is called
+				// The moment we stop scrolling, tag all images in
+				// the viewport with a class that makes them selectable
+				$("."+selectableClassName).removeClass(selectableClassName);
+				$("ul").filter(function(i,el) {
+					return isInsideViewport($(el).offset().top);
+				}).find("img").addClass(selectableClassName);
+				$rootScope.$broadcast("viewIsRefreshed");
+			}));
 			resultsSection.scroll(function () {
 				$timeout.cancel(applyChanges);
 				if (!($location.hash()==="null") && !scope.isAutoScroll) {
@@ -129,127 +227,149 @@ app.directive('autoloadContentOnScroll', function ($timeout, $location, flickrFa
 	}
 });
 
-app.factory("flickrFactory", function($http, $location, $timeout) {
+Pornographr.directive('draggableWidget', function () {
+	return {
+		restrict: 'A',
+		link: function(scope, element, attrs) {
+			$(element).draggable();
+		}
+	}
+});
 
-	var factory = {};
-	factory.db = {};
-	factory.photoidOfLastImage = "";
-	factory.photoRows = [];
+Pornographr.directive('inputBoxOps', function () {
+	return {
+		restrict: 'A',
+		link: function(scope, element, attrs) {
+			$(element).on("submit", function(e) {
+				var kv = scope.textValue.split(":"),
+					key = $.trim(kv[0]),
+					value = $.trim(kv[1]);
+				if (key.match(/hide/)) {
+					// Hide images matching tag
+				}  else if (key.match(/tag/)) {
+					var widget = {name: value};
+					if (!has_key(scope.existingWidgets, widget.name)) {
+						scope.existingWidgets[widget.name] = widget;
+						scope.$apply(function() {
+							scope.tagWidgets.push(widget);
+							scope.textValue = "tag: ";
+						});
+					}
+				}
+			});
+		}
+	}
+});
 
-	var MAX_PER_ROW = 15,
-		currentPage = 0,
-		currentRow = 0;
+Pornographr.factory("heatFactory", function(flickrFactory) {
 
-	function saveFactory() {
-		$.ajax({
-			url: "https://smack.s3-ap-southeast-1.amazonaws.com/flickrLibrary.json",
-			type: "PUT",
-			headers: {
-				"Cache-Control":"max-age=315360000",
-				"x-amz-acl": "public-read-write",
-				"x-amz-storage-class": "REDUCED_REDUNDANCY"
-			},
-			contentType: "application/json",
-			data: JSON.stringify({photos:factory.photoRows}),
-			success: function(results) {
-				// pass
-			}
-		});
+	var factory = {},
+		Heat;
+
+	factory.dataPoints = ko.observableArray([]);
+
+	var waitForRows = setInterval(function() {
+		if ($(".photoRow").width()!==null) {
+			launch();
+			clearInterval(waitForRows);
+		}
+	}, 500);
+
+	function launch() {
+
+		var	el = $("#heatmapArea"),
+			width_heat = el.width(),
+			height_heat = el.height(),
+			width_row = $(".photoRow").width(),
+			width_cell = 80;
+
+		Heat = h337.create({"element":document.getElementById("heatmapArea"), "radius":10, "visible":true});
+		$("#container").scrollTo();
+
+		Heat.get("canvas").onclick = function(ev){
+			var pos = h337.util.mousePosition(ev),
+				row = parseInt((pos[1]/height_heat)*(flickrFactory.photoRows.length-1), 10);
+			$("#container").scrollTo($("#photorow_"+row)[0], 600);
+		};
+
+		Heat.newData = function(coor) {
+			var x = coor[0] * width_cell,
+				y = coor[1],
+				elX = (x/width_row)*width_heat,
+				elY = (y/flickrFactory.photoRows.length)*height_heat;
+			Heat.store.addDataPoint(elX, elY);
+		}
+
 	}
 
-	factory.fetchMoreImages = function($scope, getrecent) {
-		if ($scope.isLoading()) {
-			return;
-		}
-		$scope.isLoading(true);
-		var getRecent = typeof(getrecent)!=='undefined',
-			getPage = getRecent ? 1 : currentPage+=1,
-			data2 = {
-				api_key: CONSUMER_KEY,
-				auth_token:'72157637621644456-7e21a10a78b52894',
-				format: 'rest',
-				method: 'flickr.photos.search',
-				page: getPage.toString(),
-				user_id: '45276723@N03',
-				per_page: '500',
-				content_type: '7',
-				extras: 'url_n, url_o, last_update',
-				sort: 'date-posted-desc'
-			};
-		data2.api_sig = sign(data2);
-		var oParser = new DOMParser();
-		$http({method: 'GET', url:path, params:data2}).success(function(xml, status, headers, config) {
-			var doc = oParser.parseFromString(xml, "text/xml"),
-				injectPhotos = [];
-			if (doc.getElementsByTagName("rsp")[0].getAttribute("stat")==='ok') {
-				// Normalize the XML into JS objects
-				var photoXMLElements = doc.getElementsByTagName("photo");
-
-				$.each(photoXMLElements, function(i, photo) {
-					try {
-						var p = {
-							id: photo.getAttribute("id"),
-							size: photo.getAttribute("width_n") + "x" + photo.getAttribute("height_n"),
-							src: photo.getAttribute("url_n").replace("_n","_s"),
-							o: photo.getAttribute("url_o"),
-							updated: photo.getAttribute("lastupdate"),
-							xpanded: false,
-							deleted: false
-						};
-						injectPhotos.push(p);
-					} catch(e) { /*pass*/ }
-				});
-
-				if (getRecent) { injectPhotos.reverse(); }
-
-				if (injectPhotos.length===0) {
-					$scope.isLoading(false);
-					return;
-				}
-
-				var targetTable = getRecent ? [] : factory.photoRows;
-
-				injectPhotos.forEach(function(photo, i) {
-					var p = photo;
-					if (typeof(factory.db[p.id])==='undefined') {
-						factory.db[p.id] = p;
-
-						// TODO: Implement "getrecent" for tableRows method
-						// var method = getRecent ? 'unshift' : 'push';
-						// factory.photos[method](p);
-
-						if (typeof(factory.photoRows[currentRow])==='undefined') {
-							factory.photoRows[currentRow] = {
-								images:[],
-								alive: 0
-							};
-						}
-						factory.photoRows[currentRow].images.push(p);
-						if (factory.photoRows[currentRow].images.length > MAX_PER_ROW) {
-							currentRow+=1;
-						}
-						if (currentPage===1 && i===0) {
-							// If this is the first load, then push it into the history stack
-							$location.hash(p.id);
-						}
-						if (i===injectPhotos.length-1) {
-							// Later on, the directive that fires when each image gets rendered
-							// will check this variable against itself so it can tell the application
-							// that this current "load" has completed rendering
-							factory.photoidOfLastImage = p.id;
-							saveFactory();
-						}
-					}
-				});
-			}
+	factory.refresh = function() {
+		try {
+			Heat.clear();
+		} catch(e) { /* On first launch, Heat could still be undefined */ }
+		factory.dataPoints().forEach(function(coor) {
+			Heat.newData(coor);
 		});
 	};
+
+	factory.dataPoints.subscribe(function(dataPoints) {
+		var v = dataPoints.slice(-1)[0];
+		Heat.newData(v);
+	});
 
 	return factory;
 
 });
 
-app.controller("GalleryController", function($scope, $location, $anchorScroll, $timeout, flickrFactory) {
+Pornographr.factory("tagService", function() {
+
+	var factory = {};
+	factory.activeTag = "";
+	factory.tagFilters = [];
+	return factory;
+
+});
+
+Pornographr.controller("TaggingController", function($rootScope, $scope, tagService) {
+
+	$scope.existingWidgets = {};
+	$scope.tagWidgets = [];
+	$scope.tagFilters = tagService.tagFilters;
+	$scope.activeTag = function() {
+		return tagService.activeTag;
+	};
+
+	$scope.armTagWidget = function(tagName) {
+		if (tagService.activeTag===tagName) {
+			tagService.activeTag = "";
+		} else {
+			tagService.activeTag = tagName;
+		}
+	};
+
+	$scope.removeTagWidget = function(widget) {
+		delete $scope.existingWidgets[widget.name];
+		$scope.tagWidgets.splice($scope.tagWidgets.indexOf(widget),1);
+		if (tagService.activeTag===widget.name) {
+			tagService.activeTag = "";
+		}
+		var index = $scope.tagFilters.indexOf(widget.name);
+		if (index>=0) {
+			$scope.tagFilters.splice(index,1);
+		}
+	};
+
+	$scope.toggleTagFilter = function(tagName) {
+		var index = $scope.tagFilters.indexOf(tagName);
+		if (index>=0) {
+			$scope.tagFilters.splice(index, 1);
+		} else {
+			$scope.tagFilters.push(tagName);
+		}
+	};
+
+});
+
+Pornographr.controller("GalleryController", function($rootScope, $scope, $location, $anchorScroll, $timeout, flickrFactory, heatFactory, tagService) {
 
 	$scope.photoRows = flickrFactory.photoRows;
 	$scope.isLoading = HeaderControls.isLoading;   // Is a BOOLEAN ko.observable
@@ -261,34 +381,61 @@ app.controller("GalleryController", function($scope, $location, $anchorScroll, $
 	// up. So if we set this to true, it will not inject the null state.
 	$scope.isAutoScroll = false;
 
-	$scope.$on('lastImageRendered', function(renderFinishedEvent) {
-		$scope.isLoading(false);
-		setTimeout(function() {
-			$("#container").trigger("scroll");
-		},250);
+	$scope.tagFilters = [];
+
+	$rootScope.$on("viewIsRefreshed", function() {
+		$scope.tagFilters = JSON.parse(JSON.stringify(tagService.tagFilters));
 	});
 
+	$scope.$on('lastImageRendered', function(renderFinishedEvent) {
+		$scope.isLoading(false);
+		heatFactory.refresh();
+		$("#container").trigger("scroll"); // For the benefit of first load
+	});
+
+	$scope.blackout = function(photo) {
+		if ($scope.tagFilters.length===0) {
+			return false;
+		} else {
+			var blackout = false,
+				i = $scope.tagFilters.length;
+			while (i--) {
+				var tag = $scope.tagFilters[i];
+				if (!flickrFactory.tags.hasOwnProperty(tag)) {
+					// No image is tagged, so blackout all
+					blackout = true;
+					break;
+				} else if (flickrFactory.tags[tag][photo.id]===undefined) {
+					// This image is not tagged
+					blackout = true;
+					break;
+				}
+			}
+			return blackout;
+		}
+	};
+
 	function expandPhoto(photo) {
+		photo.xpanded = true;
 		var d = photo.size.split("x"),
 			width = d[0], height = d[1],
 			el = $("#"+photo.id);
 		el.attr("src", photo.src.replace("_s", "_n"))
 			.css({width: width, height: height})
 			.addClass("imgExpanded");
-		photo.xpanded = true;
 	}
 
 	function shrinkPhoto(photo) {
+		photo.xpanded = false;
 		var el = $("#"+photo.id);
 		el.attr("src", photo.src)
 			.css({width: 75, height: 75})
 			.removeClass("imgExpanded");
-		photo.xpanded = false;
 	}
 
-	$scope.onImageDblClick = function(photo, event) {
+	$scope.onImageDblClick = function(photo, event, photoIndex) {
 		var el = $(event.target),
-			expanding = !el.hasClass("imgExpanded"),
+			expanding = !photo.xpanded,
 			currentHash = $location.hash();
 		if (expanding) {
 			if (currentHash==="null") {
@@ -297,7 +444,11 @@ app.controller("GalleryController", function($scope, $location, $anchorScroll, $
 			if (currentHash!==photo.id) {
 				$location.hash(photo.id);
 			}
+			// Track how many times a row has been "hit" to generate heat map data
+			flickrFactory.photoRows[flickrFactory.whichRowAmI[photo.id]].hits+=1;
 			expandPhoto(photo);
+			var rowIsThis = parseInt(el.parents("ul").attr("id").split("_")[1],10);
+			heatFactory.dataPoints.push([photoIndex, rowIsThis])
 		} else {
 			shrinkPhoto(photo);
 		}
@@ -324,60 +475,4 @@ app.controller("GalleryController", function($scope, $location, $anchorScroll, $
 		}
 	});
 
-	$(document).keydown(function(e) {
-		if (boundKeys.indexOf(e.keyCode)>=0) {
-			switch (e.keyCode)
-			{
-				case keys.tilde:
-					flickrFactory.fetchMoreImages($scope, true);
-					break;
-			}
-			return;
-		}
-	});
-
-});
-
-var WINDOW_HEIGHT = $(window).height();
-function isInsideViewport(top) {
-	return -10<top==top<WINDOW_HEIGHT;
-}
-
-$("#container").scroll($.debounce(1500, function(){
-	// The moment we stop scrolling, tag all images in the viewport with
-	// a class that makes them selectable
-	$(".imageInView").removeClass("imageinView");
-	$("ul").filter(function(i,el) {
-			return isInsideViewport($(el).offset().top);
-		})
-		.find("img")
-		.addClass("imageinView");
-}));
-
-var _selectRange = false, _deselectQueue = [];
-$( "#autopageContent" ).selectable({
-	filter: ".imageinView",
-	selecting: function (event, ui) {
-		if (event.detail == 0) {
-			_selectRange = true;
-			return true;
-		}
-		if ($(ui.selecting).hasClass('ui-selected')) {
-			_deselectQueue.push(ui.selecting);
-		}
-	},
-	unselecting: function (event, ui) {
-		$(ui.unselecting).addClass('ui-selected');
-	},
-	stop: function () {
-		if (!_selectRange) {
-			$.each(_deselectQueue, function (ix, de) {
-				$(de)
-					.removeClass('ui-selecting')
-					.removeClass('ui-selected');
-			});
-		}
-		_selectRange = false;
-		_deselectQueue = [];
-	}
 });

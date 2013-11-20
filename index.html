@@ -1,10 +1,13 @@
-<html ng-app="myApp" keyboard-events>
+<html ng-app="Pornographr">
 	<head>
 		<link rel="stylesheet" type="text/css" href="index.css">
 		<link rel="stylesheet" type="text/css" href="spinner.css">
+		<link rel="stylesheet" type="text/css" href="autoSuggest.css">
 		<link href="//netdna.bootstrapcdn.com/font-awesome/3.2.1/css/font-awesome.css" rel="stylesheet">
+		<link href='http://fonts.googleapis.com/css?family=Orienta' rel='stylesheet' type='text/css'>
 	</head>
-	<body>
+	<body keyboard-events>
+	<div id="heatmapArea"></div>
 	<div id="headerControls">
 		<div class="spinner" data-bind="visible: isLoading">
 			<div class="b red" ><div></div></div>
@@ -13,11 +16,32 @@
 			<div class="b green" ><div></div></div>
 		</div>
 	</div>
+	<div id="taggingArea" ng-controller="TaggingController">
+		<div id="tagInputBoxHolder">
+			<form input-box-ops="textValue">
+				<input id="tagInputBox" type="text" ng-model="textValue" name="text" />
+			</form>
+		</div>
+		<div id="tagList">
+			<div ng-repeat="widget in tagWidgets" ng-class="{tagWidget: true, tagWidgetArmed: activeTag()===widget.name, tagFilterOn: tagFilters.indexOf(widget.name)>=0}" draggable-widget bindonce>
+				<div class="tagName" bo-text="widget.name"></div>
+				<div class="deactivateTag" ng-click="removeTagWidget(widget)">
+					<i class="icon-remove-sign"></i>
+				</div>
+				<div ng-class="{armTagButton: true, armTagButtonArmed: activeTag()===widget.name}" ng-click="armTagWidget(widget.name)">
+					<i class="icon-circle"></i>
+				</div>
+				<div class="filterTagButton" ng-click="toggleTagFilter(widget.name)">
+					<i ng-class="tagFilters.indexOf(widget.name)>=0 ? 'icon-eye-open' : 'icon-eye-close' "></i>
+				</div>
+			</div>
+		</div>
+	</div>
 	<div id="container" ng-controller="GalleryController" autoload-content-on-scroll>
-		<div id="autopageContent">
-			<ul bindonce bo-id="'photorow_' + photoRows.indexOf(photoRow)" class="photoRow" ng-repeat="photoRow in photoRows">
-				<li ng-if="photoRow.alive<30" ng-repeat="photo in photoRow.images" class="imageHolder">
-					<img bo-id="photo.id" bo-src="photo.src" ng-dblclick="onImageDblClick(photo, $event)" on-finish-image-render>
+		<div id="autopageContent" selection-interactions>
+			<ul ng-repeat="photoRow in photoRows" bindonce bo-id="'photorow_' + photoRows.indexOf(photoRow)" class="photoRow">
+				<li ng-repeat="photo in photoRow.images" ng-if="!photo.deleted" bo-id="'holder_'+photo.id" ng-class="{imageHolder: true, filterDim: blackout(photo)}">
+					<img bo-id="photo.id" bo-src="photo.src" ng-dblclick="onImageDblClick(photo, $event, $index)" on-finish-image-render>
 					<div ng-if="photo.xpanded" class="controlPanel">
 						<a bo-href="photo.o" class="originalLink"><i class="icon-external-link-sign"></i></a>
 					</div>
@@ -30,9 +54,13 @@
 	<script src="jquery-2.0.3.min.js"></script>
 	<script src="jquery-ui-1.10.3.custom.min.js"></script>
 	<script src="jquery.ba-throttle-debounce.min.js"></script>
+	<script src="jquery.autoSuggest.packed.js"></script>
+	<script src="src/heatmap.js"></script>
+	<script src="jquery.scrollTo.js"></script>
 	<script src="firebase.js"></script>
 	<script src="bindonce.js"></script>
 	<script src="md5.js"></script>
+	<script src="flickrFactory.js"></script>
 	<script src="app.js"></script>
 	</body>
 </html>

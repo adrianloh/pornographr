@@ -1,4 +1,5 @@
 body {
+	overflow-y: hidden;
 	background-color: #000;
 }
 
@@ -15,6 +16,93 @@ img {
 	-webkit-transition: all .25s ease-in-out;
 }
 
+#heatmapArea {
+	position: relative;
+	top: 0;
+	float: right;
+	right: 20px;
+	width: 90px;
+	height: 98%;
+	background-color: #414141;
+	cursor: pointer;
+}
+
+#taggingArea {
+	position: absolute;
+	z-index: 100;
+}
+
+#tagInputBoxHolder {
+	position: absolute;
+	display: none;
+}
+
+#tagInputBox {
+	width: 200px;
+	height: 25px;
+	border-radius: 30px;
+	text-indent: 6px;
+	outline: none;
+}
+
+.tagWidget {
+	height: 20px;
+	width: 250px;
+	color: white;
+	border-radius: 10px;
+	background-color: rgba(32, 29, 29, 0.88);
+	border: 1px solid rgba(156, 156, 156, 0.25);
+	box-shadow: 6px 4px 10px rgba(0, 0, 0, 0.89);
+	cursor: move;
+}
+
+.tagName {
+	position: absolute;
+	font-family: "Orienta";
+	font-size: 14px;
+	margin-left: 24px;
+	margin-top: 2px;
+}
+
+.deactivateTag {
+	float: left;
+	margin-top: 2px;
+	margin-left: 5px;
+	font-size:15px;
+	color: white;
+	cursor: pointer;
+}
+
+.filterTagButton {
+	float: right;
+	font-size:18px;
+	color: white;
+	margin-top: 1px;
+	margin-right: 8px;
+	cursor: pointer;
+}
+
+.armTagButton {
+	float: right;
+	font-size: 15px;
+	color: white;
+	margin-top: 2px;
+	margin-right: 5px;
+	cursor: pointer;
+}
+
+.tagWidgetArmed {
+	background-color: rgba(126, 0, 0, 0.88);
+}
+
+.tagFilterOn {
+	background-color: rgba(0, 126, 44, 0.87);
+}
+
+.armTagButtonArmed {
+	color: red;
+}
+
 #container {
 	position: absolute;
 	top: 0;
@@ -26,7 +114,8 @@ img {
 }
 
 #autopageContent {
-	width: 94%; /* When expanding photos, makes the "spilling" over to next row look nicer */
+	margin-top: 30px;
+	width: 90%; /* When expanding photos, makes the "spilling" over to next row look nicer */
 }
 
 .imageHolder {
@@ -40,6 +129,14 @@ img {
 	-ms-transition: all 0.5s ease;
 	transition: all 0.5s ease;
 	background-color: rgb(244, 255, 10);
+}
+
+.imageHolderOK {
+	background-color: rgb(42, 255, 54);
+}
+
+.imageHolderError {
+	background-color: rgb(255, 11, 50);
 }
 
 .controlPanel {
@@ -64,4 +161,8 @@ img.ui-selecting {
 
 img.ui-selected {
 	-webkit-filter: opacity(0.7) contrast(1.4);
+}
+
+.filterDim {
+	/*-webkit-filter: brightness(0.3) grayscale(0.6);*/
 }
