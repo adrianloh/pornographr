@@ -40,9 +40,9 @@
 	<div id="container" ng-controller="GalleryController" autoload-content-on-scroll>
 		<div id="autopageContent" selection-interactions>
 			<ul ng-repeat="photoRow in photoRows" bindonce bo-id="'photorow_' + photoRows.indexOf(photoRow)" class="photoRow">
-				<li ng-repeat="photo in photoRow.images" ng-if="!photo.deleted" bo-id="'holder_'+photo.id" ng-class="{imageHolder: true, filterDim: blackout(photo)}">
+				<li ng-repeat="photo in photoRow.images" ng-if="!photo.ui.deleted" bo-id="'holder_'+photo.id" ng-class="{imageHolder: true, filterDim: (tagFilters.length>0 && photo.ui.dimwit)}">
 					<img bo-id="photo.id" bo-src="photo.src" ng-dblclick="onImageDblClick(photo, $event, $index)" on-finish-image-render>
-					<div ng-if="photo.xpanded" class="controlPanel">
+					<div ng-if="photo.ui.xpanded" class="controlPanel">
 						<a bo-href="photo.o" class="originalLink"><i class="icon-external-link-sign"></i></a>
 					</div>
 				</li>
@@ -60,6 +60,7 @@
 	<script src="firebase.js"></script>
 	<script src="bindonce.js"></script>
 	<script src="md5.js"></script>
+	<script src="intersection.js"></script>
 	<script src="flickrFactory.js"></script>
 	<script src="app.js"></script>
 	</body>

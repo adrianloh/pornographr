@@ -164,5 +164,5 @@ img.ui-selected {
 }
 
 .filterDim {
-	/*-webkit-filter: brightness(0.3) grayscale(0.6);*/
+	-webkit-filter: brightness(0.3) grayscale(0.6);
 }

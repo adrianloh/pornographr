@@ -28,15 +28,15 @@ Flickr.factory("flickrFactory", function($http, $location) {
 	factory.stats = {};
 	factory.photoidOfLastImage = "";
 	factory.photoRows = [];
+	factory.stream = [];
 	factory.tags = {};
 	factory.whichRowAmI = {};
 	factory.photosets = {};
 	factory.tags['deleteme'] = {};
 	factory.doNotRender = ['deleteme'];
-	factory.addTag = addTag;
 	factory.tagImages = function(listOfPhotoIds, tag) {
 		return listOfPhotoIds.map(function(photoId) {
-			return tagImage(photoId, tag);
+			return factory.tagImage(photoId, tag);
 		});
 	};
 
@@ -44,7 +44,7 @@ Flickr.factory("flickrFactory", function($http, $location) {
 		currentPage = 0,
 		currentRow = 0;
 
-	function addTag(tag, increment, photoId) {
+	function associateTagWithImage(tag, increment, photoId) {
 		if (tag.length<=1 || tag.match(/vision:/)) {
 			return;
 		}
@@ -87,10 +87,10 @@ Flickr.factory("flickrFactory", function($http, $location) {
 				auth_token: OAUTH_TOKEN,
 				format: 'rest',
 				method: 'flickr.photos.search',
-				page: getPage.toString(),
+				page: getPage,
 				user_id: USERID,
-				per_page: '500',
-				content_type: '7',
+				per_page: 500,
+				content_type: 7,
 				extras: 'url_n, url_o, last_update, tags',
 				sort: 'date-posted-desc'
 			};
@@ -113,15 +113,18 @@ Flickr.factory("flickrFactory", function($http, $location) {
 							size: photo.getAttribute("width_n") + "x" + photo.getAttribute("height_n"),
 							src: photo.getAttribute("url_n").replace("_n","_s"),
 							o: photo.getAttribute("url_o"),
+							tags: photo.getAttribute("tags").split(" "),
 							updated: photo.getAttribute("lastupdate"),
-							xpanded: false,
-							deleted: false
-						},
-						tags = photo.getAttribute("tags");
-						if (!tags.match(/deleteme/)) {
+							ui: {
+								xpanded: false,
+								deleted: false,
+								dimwit: true
+							}
+						};
+						if (p.tags.indexOf("deleteme")<0) {
 							injectPhotos.push(p);
-							tags.split(" ").forEach(function(tag) {
-								addTag(tag, 1, p.id);
+							p.tags.forEach(function(tag) {
+								associateTagWithImage(tag, 1, p.id);
 							});
 						}
 					} catch(e) { /*pass*/ }
@@ -133,8 +136,6 @@ Flickr.factory("flickrFactory", function($http, $location) {
 					$scope.isLoading(false);
 					return;
 				}
-
-				var targetTable = getRecent ? [] : factory.photoRows;
 
 				injectPhotos.forEach(function(photo, i) {
 					var photoId = photo.id;
@@ -155,6 +156,7 @@ Flickr.factory("flickrFactory", function($http, $location) {
 
 						factory.photoRows[currentRow].images.push(photo);
 						factory.whichRowAmI[photoId] = currentRow;
+						factory.stream.push(photoId);
 
 						if (factory.photoRows[currentRow].images.length > MAX_PER_ROW) {
 							currentRow+=1;
@@ -188,7 +190,49 @@ Flickr.factory("flickrFactory", function($http, $location) {
 		};
 		data2.api_sig = sign(data2);
 		return $http({method: 'GET', url:path, params:data2}).success(function(res, status, headers, config) {
+			if (res.stat==='ok') {
+				factory.db[photoId].tags.push(tag);
+				associateTagWithImage(tag, 1, photoId);
+			}
 			return res;
+		});
+	};
+
+	factory.untagImage = function(photoId, tag) {
+		var imageTags = factory.db[photoId].tags;
+		imageTags.splice(imageTags.indexOf(tag),1);
+		delete factory.tags[tag][photoId];
+		var data2 = {
+			api_key: CONSUMER_KEY,
+			auth_token: OAUTH_TOKEN,
+			format: 'json',
+			nojsoncallback: 1,
+			method: 'flickr.photos.getInfo',
+			photo_id: photoId,
+		};
+		data2.api_sig = sign(data2);
+		return $http({method: 'GET', url:path, params:data2}).success(function(res, status, headers, config) {
+			if (res.stat==='ok') {
+				var tagId = null;
+				try {
+					tagId = res.photo.tags.tag.filter(function(tagData) { return tagData.raw===tag; })[0].id;
+				} catch(e) { }
+				if (tagId!==null) {
+					data2.method = 'flickr.photos.removeTag';
+					data2.tag_id = tagId;
+					delete data2.photo_id;
+					delete data2.api_sig;
+					data2.api_sig = sign(data2);
+					$http({method: 'POST', url:path, params:data2}).success(function(res, status, headers, config) {
+						if (res.stat!=='ok') {
+							console.error("Could not remove tag" +  tag + " for photo " + photoId);
+						}
+					});
+				} else {
+					console.error("Could not getInfo for photo " + photoId);
+					console.error(res);
+				}
+			}
 		});
 	};
 
@@ -225,7 +269,7 @@ Flickr.factory("flickrFactory", function($http, $location) {
 		$http({method: 'GET', url:path, params:data2}).success(function(res, status, headers, config) {
 			if (res.stat==='ok') {
 				res.who.tags.tag.forEach(function(tag) {
-					addTag( tag._content, parseInt(tag.count,10) );
+					associateTagWithImage( tag._content, parseInt(tag.count,10) );
 				});
 			} else {
 				console.error(res);
@@ -233,7 +277,7 @@ Flickr.factory("flickrFactory", function($http, $location) {
 		});
 	})();
 
-	_flickrFactory = factory;
+	_FlickrFactory = factory;
 
 	return factory;
 
