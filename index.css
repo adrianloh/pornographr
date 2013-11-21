@@ -103,6 +103,22 @@ img {
 	color: red;
 }
 
+.shortcutNumber {
+    float: right;
+    width: 14px;
+    font-family: "Orienta";
+    font-size: 14px;
+    margin-right: 15px;
+    margin-top: 2px;
+    background-color: rgb(226, 82, 82);
+    padding-left: 6px;
+    cursor: pointer;
+}
+
+.editingShortcutNumber {
+    background-color: rgb(253, 233, 0);
+}
+
 #container {
 	position: absolute;
 	top: 0;
@@ -139,6 +155,10 @@ img {
 	background-color: rgb(255, 11, 50);
 }
 
+.activeImage {
+	border: 4px solid #0487FF;
+}
+
 .controlPanel {
 	position: relative;
 	left: 0;
@@ -164,5 +184,5 @@ img.ui-selected {
 }
 
 .filterDim {
-	-webkit-filter: brightness(0.3) grayscale(0.6);
+	border: 1px solid rgb(0, 255, 118);
 }

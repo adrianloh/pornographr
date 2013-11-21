@@ -23,7 +23,9 @@
 			</form>
 		</div>
 		<div id="tagList">
-			<div ng-repeat="widget in tagWidgets" ng-class="{tagWidget: true, tagWidgetArmed: activeTag()===widget.name, tagFilterOn: tagFilters.indexOf(widget.name)>=0}" draggable-widget bindonce>
+			<div ng-repeat="widget in tagWidgets"
+				ng-class="{tagWidget: true, tagWidgetArmed: activeTag()===widget.name, tagFilterOn: tagFilters.indexOf(widget.name)>=0}"
+				draggable-widget bindonce>
 				<div class="tagName" bo-text="widget.name"></div>
 				<div class="deactivateTag" ng-click="removeTagWidget(widget)">
 					<i class="icon-remove-sign"></i>
@@ -34,14 +36,23 @@
 				<div class="filterTagButton" ng-click="toggleTagFilter(widget.name)">
 					<i ng-class="tagFilters.indexOf(widget.name)>=0 ? 'icon-eye-open' : 'icon-eye-close' "></i>
 				</div>
+				<div ng-class="{shortcutNumber: true, editingShortcutNumber: shortcuts.indexOf(widget.name)<0}"
+					ng-click="assignShortcut(widget.name, $event)"
+					ng-bind='shortcuts.indexOf(widget.name)>=0 ? shortcuts.indexOf(widget.name)+1 : "&nbsp;" '>
+				</div>
 			</div>
 		</div>
 	</div>
 	<div id="container" ng-controller="GalleryController" autoload-content-on-scroll>
 		<div id="autopageContent" selection-interactions>
-			<ul ng-repeat="photoRow in photoRows" bindonce bo-id="'photorow_' + photoRows.indexOf(photoRow)" class="photoRow">
-				<li ng-repeat="photo in photoRow.images" ng-if="!photo.ui.deleted" bo-id="'holder_'+photo.id" ng-class="{imageHolder: true, filterDim: (tagFilters.length>0 && photo.ui.dimwit)}">
-					<img bo-id="photo.id" bo-src="photo.src" ng-dblclick="onImageDblClick(photo, $event, $index)" on-finish-image-render>
+			<ul ng-repeat="photoRow in photoRows" bindonce bo-id="'photorow_' + $index" class="photoRow">
+				<li ng-repeat="photo in photoRow.images"
+					ng-if="!photo.ui.deleted"
+					bo-id="'holder_'+photo.id"
+					ng-class="{imageHolder: true, activeImage: activeImageId===photo.id, filterDim: (tagFilters.length>0 && photo.ui.dimwit)}">
+					<img bo-id="photo.id" bo-src="photo.src"
+					     ng-dblclick="onImageDblClick(photo, $index, $parent.$parent.$index)"
+					     on-finish-image-render />
 					<div ng-if="photo.ui.xpanded" class="controlPanel">
 						<a bo-href="photo.o" class="originalLink"><i class="icon-external-link-sign"></i></a>
 					</div>
@@ -49,16 +60,16 @@
 			</ul>
 		</div>
 	</div>
-	<script src="angular-1.2.0.min.js"></script>
-	<script src="knockout-3.0.0.js"></script>
 	<script src="jquery-2.0.3.min.js"></script>
 	<script src="jquery-ui-1.10.3.custom.min.js"></script>
+    <script src="angular-1.2.0.min.js"></script>
+	<script src="bindonce.js"></script>
+    <script src="knockout-3.0.0.js"></script>
 	<script src="jquery.ba-throttle-debounce.min.js"></script>
 	<script src="jquery.autoSuggest.packed.js"></script>
-	<script src="src/heatmap.js"></script>
 	<script src="jquery.scrollTo.js"></script>
+	<script src="src/heatmap.js"></script>
 	<script src="firebase.js"></script>
-	<script src="bindonce.js"></script>
 	<script src="md5.js"></script>
 	<script src="intersection.js"></script>
 	<script src="flickrFactory.js"></script>

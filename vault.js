@@ -128,3 +128,15 @@ Pornographr.directive('inputBoxOps', function ($rootScope, flickrFactory) {
 		}
 	}
 });
+
+$rootScope.$on("intersection_refreshFilters", function() {
+	// Use the intersection method to check if an image is tagged
+	if ($scope.tagFilters.length===0) {
+		return false;
+	} else {
+		for (var photoId in flickrFactory.db) {
+			var photo = flickrFactory.db[photoId];
+			photo.ui.dimwit = !(intersection2(photo.tags, $scope.tagFilters).length===$scope.tagFilters.length);
+		}
+	}
+});

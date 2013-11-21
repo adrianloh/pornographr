@@ -1,7 +1,9 @@
-CONSUMER_KEY="723cf7cc038ef544e04f58eeb4a6bf1c";
-CONSUMER_SECRET="6020cfcb85a6b712";
-USERID="45276723@N03";
-OAUTH_TOKEN = '72157637855446934-209bfc0ef8429623';
+"use strict";
+
+var CONSUMER_KEY="723cf7cc038ef544e04f58eeb4a6bf1c";
+var CONSUMER_SECRET="6020cfcb85a6b712";
+var USERID="45276723@N03";
+var OAUTH_TOKEN = '72157637855446934-209bfc0ef8429623';
 
 function sign(params) {
 	var data = [CONSUMER_SECRET],
@@ -32,7 +34,7 @@ Flickr.factory("flickrFactory", function($http, $location) {
 	factory.tags = {};
 	factory.whichRowAmI = {};
 	factory.photosets = {};
-	factory.tags['deleteme'] = {};
+	factory.tags.deleteme = {};
 	factory.doNotRender = ['deleteme'];
 	factory.tagImages = function(listOfPhotoIds, tag) {
 		return listOfPhotoIds.map(function(photoId) {
@@ -40,7 +42,8 @@ Flickr.factory("flickrFactory", function($http, $location) {
 		});
 	};
 
-	var MAX_PER_ROW = 15,
+	var MAX_WIDTH = $("#autopageContent").width()*0.8,
+		currentWidth = 0,
 		currentPage = 0,
 		currentRow = 0;
 
@@ -91,7 +94,7 @@ Flickr.factory("flickrFactory", function($http, $location) {
 				user_id: USERID,
 				per_page: 500,
 				content_type: 7,
-				extras: 'url_n, url_o, last_update, tags',
+				extras: 'url_n, url_o, url_t, last_update, tags',
 				sort: 'date-posted-desc'
 			};
 		data2.api_sig = sign(data2);
@@ -110,15 +113,16 @@ Flickr.factory("flickrFactory", function($http, $location) {
 					try {
 						var p = {
 							id: photo.getAttribute("id"),
-							size: photo.getAttribute("width_n") + "x" + photo.getAttribute("height_n"),
-							src: photo.getAttribute("url_n").replace("_n","_s"),
+							size: {w: parseInt(photo.getAttribute("width_n"),10), h: parseInt(photo.getAttribute("height_n"),10)},
+							size_thumb: {w: parseInt(photo.getAttribute("width_t"),10), h: parseInt(photo.getAttribute("height_t"),10)},
+							src: photo.getAttribute("url_t"),
 							o: photo.getAttribute("url_o"),
 							tags: photo.getAttribute("tags").split(" "),
 							updated: photo.getAttribute("lastupdate"),
 							ui: {
 								xpanded: false,
 								deleted: false,
-								dimwit: true
+								dimwit: false
 							}
 						};
 						if (p.tags.indexOf("deleteme")<0) {
@@ -138,15 +142,20 @@ Flickr.factory("flickrFactory", function($http, $location) {
 				}
 
 				injectPhotos.forEach(function(photo, i) {
+					currentWidth+=(photo.size_thumb.w+6);
+					if (currentWidth>MAX_WIDTH) {
+						currentWidth=0;
+						currentRow+=1;
+					}
 					var photoId = photo.id;
-					if (typeof(factory.db[photoId])==='undefined') {
+					if (factory.db[photoId]===undefined) {
 						factory.db[photoId] = photo;
 
 						// TODO: Implement "getrecent" for tableRows method
 						// var method = getRecent ? 'unshift' : 'push';
 						// factory.photos[method](p);
 
-						if (typeof(factory.photoRows[currentRow])==='undefined') {
+						if (factory.photoRows[currentRow]===undefined) {
 							factory.photoRows[currentRow] = {
 								images:[],
 								alive: 0,
@@ -158,9 +167,6 @@ Flickr.factory("flickrFactory", function($http, $location) {
 						factory.whichRowAmI[photoId] = currentRow;
 						factory.stream.push(photoId);
 
-						if (factory.photoRows[currentRow].images.length > MAX_PER_ROW) {
-							currentRow+=1;
-						}
 						if (currentPage===1 && i===0) {
 							// If this is the first load, then push it into the history stack
 							$location.hash(photoId);
@@ -276,8 +282,6 @@ Flickr.factory("flickrFactory", function($http, $location) {
 			}
 		});
 	})();
-
-	_FlickrFactory = factory;
 
 	return factory;
 
