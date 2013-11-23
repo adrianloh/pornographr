@@ -1,8 +1,7 @@
 <html ng-app="Pornographr">
 	<head>
-		<link rel="stylesheet" type="text/css" href="index.css">
-		<link rel="stylesheet" type="text/css" href="spinner.css">
-		<link rel="stylesheet" type="text/css" href="autoSuggest.css">
+		<link rel="stylesheet" type="text/css" href="/css/index.css">
+		<link rel="stylesheet" type="text/css" href="/css/spinner.css">
 		<link href="//netdna.bootstrapcdn.com/font-awesome/3.2.1/css/font-awesome.css" rel="stylesheet">
 		<link href='http://fonts.googleapis.com/css?family=Orienta' rel='stylesheet' type='text/css'>
 	</head>
@@ -54,25 +53,25 @@
 					     ng-dblclick="onImageDblClick(photo, $index, $parent.$parent.$index)"
 					     on-finish-image-render />
 					<div ng-if="photo.ui.xpanded" class="controlPanel">
-						<a bo-href="photo.o" class="originalLink"><i class="icon-external-link-sign"></i></a>
+						<a bo-href="photo.o" class="originalLink">
+							<i class="icon-external-link-sign" ng-click="openOriginalLink($event, photo.o)"></i>
+						</a>
 					</div>
 				</li>
 			</ul>
 		</div>
 	</div>
-	<script src="jquery-2.0.3.min.js"></script>
-	<script src="jquery-ui-1.10.3.custom.min.js"></script>
-    <script src="angular-1.2.0.min.js"></script>
-	<script src="bindonce.js"></script>
-    <script src="knockout-3.0.0.js"></script>
-	<script src="jquery.ba-throttle-debounce.min.js"></script>
-	<script src="jquery.autoSuggest.packed.js"></script>
-	<script src="jquery.scrollTo.js"></script>
-	<script src="src/heatmap.js"></script>
-	<script src="firebase.js"></script>
-	<script src="md5.js"></script>
-	<script src="intersection.js"></script>
-	<script src="flickrFactory.js"></script>
-	<script src="app.js"></script>
+	<script src="/js/jquery-2.0.3.min.js"></script>
+	<script src="/js/jquery-ui-1.10.3.custom.min.js"></script>
+    <script src="/js/angular-1.2.2.js"></script>
+	<script src="/js/bindonce.js"></script>
+    <script src="/js/knockout-3.0.0.js"></script>
+	<script src="/js/jquery.ba-throttle-debounce.min.js"></script>
+	<script src="/js/jquery.scrollTo.js"></script>
+	<script src="/js/heatmap.js"></script>
+	<script src="/js/firebase.js"></script>
+	<script src="/js/md5.js"></script>
+	<script src="/js/flickrFactory.js"></script>
+	<script src="/js/main.js"></script>
 	</body>
 </html>

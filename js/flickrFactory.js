@@ -3,7 +3,7 @@
 var CONSUMER_KEY="723cf7cc038ef544e04f58eeb4a6bf1c";
 var CONSUMER_SECRET="6020cfcb85a6b712";
 var USERID="45276723@N03";
-var OAUTH_TOKEN = '72157637855446934-209bfc0ef8429623';
+var OAUTH_TOKEN = "72157637855446934-209bfc0ef8429623";
 
 function sign(params) {
 	var data = [CONSUMER_SECRET],
@@ -32,7 +32,6 @@ Flickr.factory("flickrFactory", function($http, $location) {
 	factory.photoRows = [];
 	factory.stream = [];
 	factory.tags = {};
-	factory.whichRowAmI = {};
 	factory.photosets = {};
 	factory.tags.deleteme = {};
 	factory.doNotRender = ['deleteme'];
@@ -42,10 +41,16 @@ Flickr.factory("flickrFactory", function($http, $location) {
 		});
 	};
 
+	factory.currentPage= 0;
+
 	var MAX_WIDTH = $("#autopageContent").width()*0.8,
 		currentWidth = 0,
-		currentPage = 0,
 		currentRow = 0;
+
+	var m = $location.path().match(/\d+\/\d+/);
+	if (m) {
+		console.log(m);
+	}
 
 	function associateTagWithImage(tag, increment, photoId) {
 		if (tag.length<=1 || tag.match(/vision:/)) {
@@ -78,111 +83,144 @@ Flickr.factory("flickrFactory", function($http, $location) {
 		});
 	}
 
+	function getLeader() {
+		var data2 = {
+			api_key: CONSUMER_KEY,
+			auth_token: OAUTH_TOKEN,
+			format: 'json',
+			nojsoncallback: 1,
+			method: 'flickr.photos.search',
+			page: 1,
+			user_id: USERID,
+			per_page: 1,
+			content_type: 7,
+			sort: 'date-posted-desc'
+		};
+		data2.api_sig = sign(data2);
+		return $http({method: 'GET', url:path, params:data2});
+	}
+
+	function fetchPage(page, perPage, callback) {
+		var oParser = new DOMParser(),  // We're using XML vs JSON for this particular request because $http seems to cache it
+			data2 = {
+			api_key: CONSUMER_KEY,
+			auth_token: OAUTH_TOKEN,
+			format: 'rest',
+			method: 'flickr.photos.search',
+			page: page,
+			user_id: USERID,
+			per_page: perPage,
+			content_type: 7,
+			extras: 'url_n, url_o, url_t, last_update, tags',
+			sort: 'date-posted-desc'
+		};
+		data2.api_sig = sign(data2);
+		getLeader().then(function(res1) {
+			$http({method: 'GET', url:path, params:data2}).then(function(res2) {
+				var o = {
+					context: res1.data,
+					doc: oParser.parseFromString(res2.data, "text/xml")
+				};
+				var res = o.doc.getElementsByTagName("rsp")[0];
+				if (res.getAttribute("stat")==='ok') {
+					callback(o);
+				}
+			});
+		});
+	}
+
 	factory.fetchMoreImages = function($scope, getrecent) {
 		if ($scope.isLoading()) {
 			return;
 		}
 		$scope.isLoading(true);
-		var getRecent = typeof(getrecent)!=='undefined',
-			getPage = getRecent ? 1 : currentPage+=1,
-			data2 = {
-				api_key: CONSUMER_KEY,
-				auth_token: OAUTH_TOKEN,
-				format: 'rest',
-				method: 'flickr.photos.search',
-				page: getPage,
-				user_id: USERID,
-				per_page: 500,
-				content_type: 7,
-				extras: 'url_n, url_o, url_t, last_update, tags',
-				sort: 'date-posted-desc'
-			};
-		data2.api_sig = sign(data2);
-		var oParser = new DOMParser();  // We're using XML vs JSON for this particular request because $http seems to cache it
-		$http({method: 'GET', url:path, params:data2}).success(function(xml, status, headers, config) {
-			var doc = oParser.parseFromString(xml, "text/xml"),
-				res = doc.getElementsByTagName("rsp")[0],
-				injectPhotos = [], stats;
-			if (res.getAttribute("stat")==='ok') {
-				stats = res.getElementsByTagName("photos")[0];
-				factory.stats.totalPages = parseInt(stats.getAttribute("pages"),10);
-				factory.stats.totalImages = parseInt(stats.getAttribute("total"), 10);
-				// Normalize the XML into JS objects
-				var photoXMLElements = doc.getElementsByTagName("photo");
-				$.each(photoXMLElements, function(i, photo) {
-					try {
-						var p = {
-							id: photo.getAttribute("id"),
-							size: {w: parseInt(photo.getAttribute("width_n"),10), h: parseInt(photo.getAttribute("height_n"),10)},
-							size_thumb: {w: parseInt(photo.getAttribute("width_t"),10), h: parseInt(photo.getAttribute("height_t"),10)},
-							src: photo.getAttribute("url_t"),
-							o: photo.getAttribute("url_o"),
-							tags: photo.getAttribute("tags").split(" "),
-							updated: photo.getAttribute("lastupdate"),
-							ui: {
-								xpanded: false,
-								deleted: false,
-								dimwit: false
-							}
-						};
-						if (p.tags.indexOf("deleteme")<0) {
-							injectPhotos.push(p);
-							p.tags.forEach(function(tag) {
-								associateTagWithImage(tag, 1, p.id);
-							});
+		var getRecent = getrecent!==undefined,
+			getPage = getRecent ? 1 : factory.currentPage+=1;
+
+		fetchPage(getPage, 500).then(function(resp) {
+			var ctxt = resp.context,    // This is JSON
+				doc = resp.doc,         // This is XML
+				total = parseInt(ctxt.photos.total, 10),
+				first = ctxt.photo[0].id,
+				context = {
+					page: getPage,
+					first: first,
+					total: total
+				};
+			var injectPhotos = [],
+				photoXMLElements = doc.getElementsByTagName("photo");
+			$.each(photoXMLElements, function(i, photo) {
+				try {
+					var p = {
+						id: photo.getAttribute("id"),
+						size: {w: parseInt(photo.getAttribute("width_n"),10), h: parseInt(photo.getAttribute("height_n"),10)},
+						size_thumb: {w: parseInt(photo.getAttribute("width_t"),10), h: parseInt(photo.getAttribute("height_t"),10)},
+						src: photo.getAttribute("url_t"),
+						o: photo.getAttribute("url_o"),
+						tags: photo.getAttribute("tags").split(" "),
+						updated: photo.getAttribute("lastupdate"),
+						context: context,
+						ui: {
+							xpanded: false,
+							deleted: false,
+							dimwit: false
 						}
-					} catch(e) { /*pass*/ }
-				});
-
-				if (getRecent) { injectPhotos.reverse(); }
-
-				if (injectPhotos.length===0) {
-					$scope.isLoading(false);
-					return;
+					};
+					if (p.tags.indexOf("deleteme")<0) {
+						injectPhotos.push(p);
+						p.tags.forEach(function(tag) {
+							associateTagWithImage(tag, 1, p.id);
+						});
+					}
+				} catch(e) {
+					/* In case the XML is malformed, or something fucked up */
 				}
-
-				injectPhotos.forEach(function(photo, i) {
-					currentWidth+=(photo.size_thumb.w+6);
-					if (currentWidth>MAX_WIDTH) {
-						currentWidth=0;
-						currentRow+=1;
-					}
-					var photoId = photo.id;
-					if (factory.db[photoId]===undefined) {
-						factory.db[photoId] = photo;
-
-						// TODO: Implement "getrecent" for tableRows method
-						// var method = getRecent ? 'unshift' : 'push';
-						// factory.photos[method](p);
-
-						if (factory.photoRows[currentRow]===undefined) {
-							factory.photoRows[currentRow] = {
-								images:[],
-								alive: 0,
-								hits: 0
-							};
-						}
-
-						factory.photoRows[currentRow].images.push(photo);
-						factory.whichRowAmI[photoId] = currentRow;
-						factory.stream.push(photoId);
-
-						if (currentPage===1 && i===0) {
-							// If this is the first load, then push it into the history stack
-							$location.hash(photoId);
-						}
-						if (i===injectPhotos.length-1) {
-							// Later on, the directive that fires when each image gets rendered
-							// will check this variable against itself so it can tell the application
-							// that this current "load" has completed rendering
-							factory.photoidOfLastImage = photoId;
-							saveFactory();
-						}
-					}
-				});
+			});
+			if (injectPhotos.length===0) {
+				$scope.isLoading(false);
+			} else {
+				if (getRecent) { injectPhotos.reverse(); }
+				renderImages(injectPhotos);
 			}
 		});
 	};
+
+	function renderImages(injectPhotos) {
+		injectPhotos.forEach(function(photo, i) {
+			currentWidth+=(photo.size_thumb.w+6);
+			if (currentWidth>MAX_WIDTH) {
+				currentWidth=0;
+				currentRow+=1;
+			}
+			var photoId = photo.id;
+			if (factory.db[photoId]===undefined) {
+				factory.db[photoId] = photo;
+				if (factory.photoRows[currentRow]===undefined) {
+					factory.photoRows[currentRow] = {
+						images:[],
+						alive: 0,
+						hits: 0
+					};
+				}
+
+				factory.photoRows[currentRow].images.push(photo);
+				factory.stream.push(photoId);
+
+				if (factory.currentPage===1 && i===0) {
+					// If this is the first load, then push it into the history stack
+					$location.hash(photoId);
+				}
+				if (i===injectPhotos.length-1) {
+					// Later on, the directive that fires when each image gets rendered
+					// will check this variable against itself so it can tell the application
+					// that this current "load" has completed rendering
+					factory.photoidOfLastImage = photoId;
+					saveFactory();
+				}
+			}
+		});
+	}
+
 
 	factory.tagImage = function(photoId, tag) {
 		var data2 = {
@@ -214,7 +252,7 @@ Flickr.factory("flickrFactory", function($http, $location) {
 			format: 'json',
 			nojsoncallback: 1,
 			method: 'flickr.photos.getInfo',
-			photo_id: photoId,
+			photo_id: photoId
 		};
 		data2.api_sig = sign(data2);
 		return $http({method: 'GET', url:path, params:data2}).success(function(res, status, headers, config) {

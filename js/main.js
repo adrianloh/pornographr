@@ -17,6 +17,8 @@ ko.applyBindings(HeaderControls, document.getElementById("headerControls"));
 
 var firebase = new Firebase('https://oogly.firebaseio-demo.com/');
 
+var Peekaboo = {};
+
 var Pornographr = angular.module('Pornographr', ['flickrFactory', 'pasvaz.bindonce']);
 
 Pornographr.config(function ($anchorScrollProvider, $locationProvider) {
@@ -37,7 +39,7 @@ Pornographr.directive('onFinishImageRender', function ($timeout, flickrFactory) 
 				}
 			});
 		}
-	}
+	};
 });
 
 Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrFactory, tagService, keyboardService) {
@@ -72,15 +74,15 @@ Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrF
 				boundKeyCodes = {},
 				alphabets = {},
 				numbers_over_zero = {},
-				i;
-			for (var k in keys) {
+				i,k;
+			for (k in keys) {
 				boundKeyCodes[keys[k]] = true;
 			}
-			for (i=65;i<91;i++) {
+			for (i=65;i<91;++i) {
 				alphabets[i] = true;
 				boundKeyCodes[i] = true;
 			}
-			for (i=49;i<58;i++) {
+			for (i=49;i<58;++i) {
 				numbers_over_zero[i] = true;
 				boundKeyCodes[i] = true;
 			}
@@ -195,7 +197,7 @@ Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrF
 				}
 			});
 		}
-	}
+	};
 });
 
 Pornographr.directive('selectionInteractions', function ($rootScope, tagService, keyboardService, flickrFactory) {
@@ -452,6 +454,8 @@ Pornographr.factory("tagService", function() {
 
 Pornographr.controller("TaggingController", function($rootScope, $scope, tagService, keyboardService) {
 
+	Peekaboo.taggingController = $scope;
+
 	$scope.existingWidgets = {};
 	$scope.tagWidgets = [];
 	$scope.shortcuts = tagService.shortcuts;
@@ -545,7 +549,10 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, tagServ
 
 });
 
-Pornographr.controller("GalleryController", function($rootScope, $scope, $location, $anchorScroll, $timeout, flickrFactory, heatFactory, tagService) {
+Pornographr.controller("GalleryController", function($rootScope, $scope, $location, $anchorScroll, $timeout, flickrFactory, keyboardService, heatFactory, tagService) {
+
+	Peekaboo.flickrFactory = flickrFactory;
+	Peekaboo.galleryController = $scope;
 
 	$scope.photoRows = flickrFactory.photoRows;
 	$scope.isLoading = HeaderControls.isLoading;   // Is a BOOLEAN ko.observable
@@ -594,6 +601,11 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 			.removeClass("imgExpanded");
 	}
 
+	$scope.openOriginalLink = function(event, originalImageLink) {
+		window.open(originalImageLink);
+		keyboardService.altKeyDown = false; // BUG?!!
+	};
+
 	$scope.onImageDblClick = function(photo, photoIndex, rowIndex) {
 		var expanding = !photo.ui.xpanded,
 			currentHash = $location.hash();
@@ -639,9 +651,6 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 			container.scrollTo($("#"+nextPhotoId)[0], 600, {over:{top:-0.8, left:0}} );
 		});
 	}
-
-	$location.path('/');
-	flickrFactory.fetchMoreImages($scope);
 
 	// In the so-called "Angular world", where is this *supposed* to go?
 	window.addEventListener("popstate", function(e) {
