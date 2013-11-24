@@ -19,7 +19,7 @@ var firebase = new Firebase('https://oogly.firebaseio-demo.com/');
 
 var Peekaboo = {};
 
-var Pornographr = angular.module('Pornographr', ['flickrFactory', 'pasvaz.bindonce']);
+var Pornographr = angular.module('Pornographr', ['flickrFactory', 'flickrAuth', 'pasvaz.bindonce']);
 
 Pornographr.config(function ($anchorScrollProvider, $locationProvider) {
 	$locationProvider.html5Mode(true);
@@ -92,6 +92,7 @@ Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrF
 
 			var editingShorcutForTag = null;
 			$rootScope.$on("editingShortcutNumber", function(event, tagName) {
+				// This is emitted from GalleryController
 				editingShorcutForTag = tagName;
 			});
 
@@ -115,7 +116,7 @@ Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrF
 						if (editingShorcutForTag!==null) {
 							// We're renumbering a shortcut
 							var data = {tag: editingShorcutForTag, number: keyCode-48};
-							$rootScope.$broadcast("setShortcutNumber", data);
+							$rootScope.$broadcast("setShortcutNumber", data); // This is intercepted by GalleryController
 							editingShorcutForTag = null;
 							e.preventDefault();
 						} else if ($(document.activeElement)[0].tagName.toLowerCase()!=='input') {
@@ -210,7 +211,7 @@ Pornographr.directive('selectionInteractions', function ($rootScope, tagService,
 				$(el).removeClass('ui-selecting').removeClass('ui-selected');
 			}
 			$(element).selectable({
-				filter: ".imageInView",
+				filter: ".imageInView", // This class will be added by directive:autoloadContentOnScroll
 				selecting: function (event, ui) {
 					if (event.detail===0) {
 						_selectRange = true;
@@ -223,10 +224,12 @@ Pornographr.directive('selectionInteractions', function ($rootScope, tagService,
 							photoId = self.id,
 							imageHolder = $("#holder_" + photoId);
 						// If this image is already tagged with this keyword...
-						if (has_key(flickrFactory.tags, tag) && has_key(flickrFactory.tags[tag], photoId)) {
-							// ... and filter is active and the user is not holding down SHIFT,
-							// then untag the image...
-							if (tagService.filterIsActive() && !keyboardService.shiftKeyDown) {
+						if (has_key(flickrFactory.tags, tag) &&
+							has_key(flickrFactory.tags[tag], photoId)) {
+							if (!keyboardService.shiftKeyDown &&
+								tagService.filteredByActiveTag()) {
+								// ... and the armed tag is also the active filter and
+								// the user is not holding down SHIFT, then untag the image...
 								flickrFactory.untagImage(photoId, tag).then(function(resObject) {
 									deselect(self);
 									$rootScope.$broadcast("refreshFilters");
@@ -250,8 +253,9 @@ Pornographr.directive('selectionInteractions', function ($rootScope, tagService,
 										imageHolder.removeClass("imageHolderOK");
 										deselect(self);
 									}, 250);
-									if (tagService.filterIsActive()) {
+									if (tagService.filteredByActiveTag()) {
 										$rootScope.$broadcast("refreshFilters");
+//										flickrFactory.db[photoId].ui.dimwit = true;
 									}
 								}
 							});
@@ -303,13 +307,19 @@ Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, 
 				return -10<top==top<WINDOW_HEIGHT;
 			}
 
-			scrollingContainer.scroll($.debounce(750, function() { // This regulates the amount of times this function is called
-				// The moment we stop scrolling, tag all images in
-				// the viewport with a class that makes them selectable
+			// Note, $.debounce regulates the frequency the callback function is invoked
+			scrollingContainer.scroll($.debounce(750, function() {
+				// The moment we stop scrolling...
 				$("."+selectableClassName).removeClass(selectableClassName);
-				$("ul").filter(function(i,el) {
+				// Get all visible rows in the viewport
+				var rowsInView = $("ul").filter(function(i,el) {
 					return isInsideViewport($(el).offset().top);
-				}).find("img").addClass(selectableClassName);
+				});
+				// Save the first visible row in localStorage so we can recall
+				// it later when we reload the site
+				localStorage.firstVisibleRow = rowsInView[0].getAttribute("id");
+				// Tag all images in the visible rows as selectable
+				rowsInView.find("img").addClass(selectableClassName);
 				$rootScope.$broadcast("viewIsRefreshed");
 			}));
 
@@ -320,12 +330,18 @@ Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, 
 						$location.hash('null');
 					});
 				}
-				var pos = (autopageContent.position().top-scrollingContainer.height())*-1/scrollingContainer.height()/(autopageContent.height()/scrollingContainer.height());
+				var pos1 = (autopageContent.position().top-scrollingContainer.height())*-1/scrollingContainer.height(),
+					pos = pos1/(autopageContent.height()/scrollingContainer.height());
 				if (pos>last_position) {
 					// User is scrolling down
-					if (pos>=0.95) flickrFactory.fetchMoreImages(scope);
+					if (pos>=0.95) {
+						flickrFactory.fetchMoreImages(scope, 1);
+					}
 				} else {
 					// User is scrolling up
+					if (pos1===1) {
+						flickrFactory.fetchMoreImages(scope, -1);
+					}
 				}
 				last_position = pos;
 			});
@@ -348,7 +364,7 @@ Pornographr.directive('inputBoxOps', function () {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
 			$(element).on("submit", function(e) {
-				var kv = scope.textValue.split(":"),
+				var kv = scope.textValue.split(":"), // textValue is the ng-model on $("#tagInputBox")
 					key = $.trim(kv[0]),
 					value = $.trim(kv[1]);
 				if (key.match(/hide/)) {
@@ -376,7 +392,9 @@ Pornographr.factory("keyboardService", function() {
 Pornographr.factory("heatFactory", function(flickrFactory) {
 
 	var factory = {},
-		Heat;
+		Heat,
+		el = $("#heatmapArea"),
+		container = $("#container");
 
 	factory.dataPoints = ko.observableArray([]);
 
@@ -389,24 +407,24 @@ Pornographr.factory("heatFactory", function(flickrFactory) {
 
 	function launch() {
 
-		var	el = $("#heatmapArea"),
-			width_heat = el.width(),
-			height_heat = el.height(),
+		var	width_heat = el.width()*0.95,
+			height_heat = el.height()*0.95,
 			width_row = $(".photoRow").width(),
 			width_cell = 80;
 
 		Heat = h337.create({"element":document.getElementById("heatmapArea"), "radius":10, "visible":true});
-		$("#container").scrollTo();
+		container.scrollTo();
 
 		Heat.get("canvas").onclick = function(ev){
 			var pos = h337.util.mousePosition(ev),
 				row = parseInt((pos[1]/height_heat)*(flickrFactory.photoRows.length-1), 10);
-			$("#container").scrollTo($("#photorow_"+row)[0], 600);
+			container.scrollTo($($(".photoRow")[row]), 600);
 		};
 
 		Heat.newData = function(coor) {
+			// Where coor is [index_of_photo_in_row, id_of_row]
 			var x = coor[0] * width_cell,
-				y = coor[1],
+				y = $(".photoRow").index($("#"+coor[1])),
 				elX = (x/width_row)*width_heat,
 				elY = (y/flickrFactory.photoRows.length)*height_heat;
 			Heat.store.addDataPoint(elX, elY);
@@ -414,12 +432,23 @@ Pornographr.factory("heatFactory", function(flickrFactory) {
 
 	}
 
+	factory.drawFilterMap = function(listOfPhotoIds) {
+		el.addClass("heatMapUnderFilter");
+		Heat.clear();
+		var i = listOfPhotoIds.length, coor;
+		while(i--) {
+			coor = flickrFactory.getCoordinatesOfPhotoId(listOfPhotoIds[i]);
+			Heat.newData(coor);
+		}
+	};
+
 	factory.refresh = function() {
 		try {
 			Heat.clear();
 		} catch(e) {
 			/* On first launch, Heat could still be undefined */
 		}
+		el.removeClass("heatMapUnderFilter");
 		factory.dataPoints().forEach(function(coor) {
 			Heat.newData(coor);
 		});
@@ -440,8 +469,8 @@ Pornographr.factory("tagService", function() {
 	factory.activeTag = "";
 	factory.tagFilters = [];
 	factory.shortcuts = [null, null, null, null, null, null, null, null, null];
-	factory.filterIsActive = function() {
-		return factory.tagFilters.length>0
+	factory.filteredByActiveTag = function() {
+		return factory.tagFilters.indexOf(factory.activeTag)>=0;
 	};
 	factory.resetTileColors = function() {
 		["imageHolderError", "imageHolderOK"].forEach(function(selector) {
@@ -452,7 +481,7 @@ Pornographr.factory("tagService", function() {
 
 });
 
-Pornographr.controller("TaggingController", function($rootScope, $scope, tagService, keyboardService) {
+Pornographr.controller("TaggingController", function($rootScope, $scope, $timeout, heatFactory, flickrFactory, tagService, keyboardService) {
 
 	Peekaboo.taggingController = $scope;
 
@@ -461,20 +490,60 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, tagServ
 	$scope.shortcuts = tagService.shortcuts;
 	$scope.tagFilters = tagService.tagFilters;
 
+	function persist() {
+		var saveData = {};
+		saveData.tagWidgets = $scope.tagWidgets;
+		saveData.shortcuts = $scope.shortcuts;
+		localStorage.taggingController = JSON.stringify(saveData);
+	}
+
+	function refreshFilters() {
+		if ($scope.tagFilters.length>0) {
+			var qualifiedPhotos = [];
+			for (var photoId in flickrFactory.db) {
+				var isTagged = [],
+					photo = flickrFactory.db[photoId];
+				$scope.tagFilters.forEach(function(tag) {
+					try {
+						if (flickrFactory.tags[tag][photoId]!==undefined) {
+							isTagged.push(true);
+						}
+					} catch(e) { /*pass*/ }
+				});
+				photo.ui.dimwit = isTagged.length===$scope.tagFilters.length;
+				if (photo.ui.dimwit) {
+					qualifiedPhotos.push(photoId);
+				}
+			}
+			heatFactory.drawFilterMap(qualifiedPhotos);
+		} else {
+			heatFactory.refresh();
+		}
+	}
+
+	$rootScope.$on("refreshFilters", refreshFilters);
+
 	$scope.activeTag = function() {
 		return tagService.activeTag;
 	};
 
-	$scope.createWidgetWithTag = function(name) {
+	$scope.createWidgetWithTag = function(name, shortcutNumber) {
+		// shortcutNumber is only passed in when we restore state
+		// after we reload the site
 		if (!$scope.existingWidgets.hasOwnProperty(name)) {
-			var widget = {
+			var availableShortcutSlot,
+				widget = {
 				name: name
-			}, availableShortcutSlot;
+			};
 			$scope.existingWidgets[widget.name] = widget;
 			$scope.$apply(function() {
-				availableShortcutSlot = $scope.shortcuts.indexOf(null);
-				if (availableShortcutSlot>=0) {
-					$scope.shortcuts[availableShortcutSlot] = name;
+				if (shortcutNumber===undefined) {
+					availableShortcutSlot = $scope.shortcuts.indexOf(null);
+					if (availableShortcutSlot>=0) {
+						$scope.shortcuts[availableShortcutSlot] = name;
+					}
+				} else {
+					$scope.shortcuts[shortcutNumber] = name;
 				}
 				$scope.tagWidgets.push(widget);
 				if ($scope.tagWidgets.length===0) {
@@ -482,31 +551,49 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, tagServ
 					$scope.toggleTagFilter(name);
 				}
 			});
+			persist();
 		}
 	};
 
 	$scope.armTagWidget = function(tagName) {
+		var actionArm;
 		if (tagService.activeTag===tagName) {
+			// Disarm
 			tagService.activeTag = "";
+			actionArm = false;
 		} else {
+			// Arm
 			tagService.activeTag = tagName;
+			actionArm = true;
 		}
-		if (keyboardService.altKeyDown) {
+		var index = $scope.tagFilters.indexOf(tagName);
+		if (actionArm) {
+			if (index>=0) {
+				$scope.tagFilters.splice(index,1);
+			}
+		} else {
+			if (index<0) {
+				$scope.tagFilters.push(tagName);
+			}
+		}
+		if (!keyboardService.altKeyDown) {
 			$scope.toggleTagFilter(tagName);
 		}
 	};
 
 	$rootScope.$on("keyboardArmTag", function(event, data) {
 		$scope.$apply(function() {
-			$scope.armTagWidget(data.tag, data.and_activate_filter);
+			$scope.armTagWidget(data.tag);
 		});
 	});
 
 	$rootScope.$on("setShortcutNumber", function(event, data) {
-		var keyboardNumber = data.number-1, // We want an index number
+		// data.number is the number pressed on the keyboard, -1 to get the index
+		var keyboardNumber = data.number-1,
 			tagName = data.tag;
 		$scope.$apply(function() {
 			$scope.shortcuts[keyboardNumber] = tagName;
+			persist();
 		});
 	});
 
@@ -529,6 +616,7 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, tagServ
 		if (index>=0) {
 			$scope.shortcuts[index] = null;
 		}
+		persist();
 	};
 
 	$scope.toggleTagFilter = function(tagName) {
@@ -544,12 +632,27 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, tagServ
 			}
 			$scope.tagFilters.push(tagName);
 		}
-		$rootScope.$broadcast("refreshFilters");
+		refreshFilters();
 	};
+
+	if (localStorage.hasOwnProperty('taggingController')) {
+		$timeout(function() {
+			var savedData = JSON.parse(localStorage.taggingController);
+			savedData.tagWidgets.forEach(function(tagData) {
+				var tagName = tagData.name,
+					index = savedData.shortcuts.indexOf(tagName);
+				if (index>=0) {
+					$scope.createWidgetWithTag(tagName, index);
+				} else {
+					$scope.createWidgetWithTag(tagName);
+				}
+			});
+		}, 2500);
+	}
 
 });
 
-Pornographr.controller("GalleryController", function($rootScope, $scope, $location, $anchorScroll, $timeout, flickrFactory, keyboardService, heatFactory, tagService) {
+Pornographr.controller("GalleryController", function($rootScope, $scope, $location, $anchorScroll, $timeout, flickrAuth, flickrFactory, keyboardService, heatFactory, tagService) {
 
 	Peekaboo.flickrFactory = flickrFactory;
 	Peekaboo.galleryController = $scope;
@@ -560,28 +663,78 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 	$scope.tagFilters = tagService.tagFilters;
 	$scope.activeImageId = null;
 
-	var container = $("#container");
+	var checkReadyToScroll,
+		container = $("#container"),
+		lastBookmarkImageId = null,
+		m = $location.path().match(/\/(\d+)/);
 
+	function init() {
+		if (m) {
+			var page = parseInt(m[1],10),
+				photoId = $location.hash(),
+				selector = null;
+			if (photoId.length>0 && photoId!=='null') {
+				lastBookmarkImageId = photoId;
+				selector = "#"+photoId;
+			} else if (photoId==='null' && localStorage.hasOwnProperty('firstVisibleRow')) {
+				// If there is a null in the hash, this *always* automatically returns you to
+				// the last position you you were viewing when you reload the site, which
+				// means, to jump to a specific page, you must give it a url *without* a hash
+				page = parseInt(localStorage.firstVisibleRow.split("_")[1]);
+				lastBookmarkImageId = 'useLastPosition';
+				selector = "#"+localStorage.firstVisibleRow;
+				$location.path("/"+page);
+			}
+			if (selector!==null) {
+				// Wait for the element to appear, then scroll to it.
+				// If the element *never* appears, then the "lastImageRendered"
+				// event callback will clear this check
+				checkReadyToScroll = setInterval(function() {
+					var el = $(selector);
+					if (el.length>0) {
+						clearInterval(checkReadyToScroll);
+						lastBookmarkImageId = null;
+						$scope.isAutoScroll = true;
+						container.scrollTo(el, 500);
+						var photo = flickrFactory.db[photoId];
+						if (photo) {
+							$scope.$apply(function() {
+								expandPhoto(photo);
+							});
+						}
+						setTimeout(function() {
+							$scope.isAutoScroll = false;
+						}, 1500);
+					}
+				}, 500);
+			}
+			flickrFactory.initOnPage($scope, page);
+		} else {
+			$location.path("/1");
+			flickrFactory.initOnPage($scope, 1);
+		}
+	}
+
+	var checkReady = setInterval(function(){
+		if (flickrAuth.userid!==null) {
+			init();
+			clearInterval(checkReady);
+		}
+	}, 1000);
+
+	var firstLoad = true;
 	$scope.$on('lastImageRendered', function(renderFinishedEvent) {
 		$scope.isLoading(false);
-		heatFactory.refresh();
-		container.trigger("scroll"); // For the benefit of first load
-	});
-
-	$rootScope.$on("refreshFilters", function() {
-		if ($scope.tagFilters.length>0) {
-			for (var photoId in flickrFactory.db) {
-				var isTagged = [],
-					photo = flickrFactory.db[photoId];
-				$scope.tagFilters.forEach(function(tag){
-					try {
-						if (flickrFactory.tags[tag][photoId]!==undefined) {
-							isTagged.push(true);
-						}
-					} catch(e) { /*pass*/ }
-				});
-				photo.ui.dimwit = isTagged.length===$scope.tagFilters.length;
-			}
+		$rootScope.$broadcast("refreshFilters");
+		if (lastBookmarkImageId!==null) {
+			setTimeout(function() {
+				clearInterval(checkReadyToScroll);
+				lastBookmarkImageId = null;
+			}, 1000);
+		}
+		if (firstLoad) {
+			container.trigger("scroll"); // To trigger the ability to select
+			firstLoad = false;
 		}
 	});
 
@@ -606,20 +759,21 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 		keyboardService.altKeyDown = false; // BUG?!!
 	};
 
-	$scope.onImageDblClick = function(photo, photoIndex, rowIndex) {
+	$scope.onImageDblClick = function(photo, photoIndex, photoRowId) {
 		var expanding = !photo.ui.xpanded,
-			currentHash = $location.hash();
+			currentHash = $location.hash(),
+			pageNumber = photoRowId.split("_")[1];
 		$scope.activeImageId = photo.id;
 		if (expanding) {
 			if (currentHash==="null") {
 				$location.replace();
 			}
 			if (currentHash!==photo.id) {
+				$location.path("/" + pageNumber);
 				$location.hash(photo.id);
 			}
 			expandPhoto(photo);
-			flickrFactory.photoRows[rowIndex].hits+=1;
-			heatFactory.dataPoints.push([photoIndex, rowIndex])
+			heatFactory.dataPoints.push([photoIndex, photoRowId])
 		} else {
 			shrinkPhoto(photo);
 		}
@@ -632,6 +786,21 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 	$rootScope.$on("goToPreviousImage", function() {
 		arrowNavigate(-1);
 	});
+
+	$scope.updateCurrentProgress = function() {
+		// Called by ng-style from $("#loadedPages")
+		var lower = flickrFactory.upPage,
+			upper = flickrFactory.downPage,
+			total = flickrFactory.totalPages,
+			left = (lower/total*100).toFixed(2),
+			width = ((upper-lower)/total*100).toFixed(2);
+		// When the width becomes too narrow, just make sure it's pretty
+		// and we have at least something to look at
+		if ("0.10">width) width = "0.50";
+		// When loading page 1, this value is ~0.86%, force it to zero
+		if ("0.90">left) left = "0.00";
+		return {left: left+"%", width: width+"%"};
+	};
 
 	function arrowNavigate(direction) {
 		var stream = flickrFactory.stream,

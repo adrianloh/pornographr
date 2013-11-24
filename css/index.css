@@ -1,6 +1,6 @@
 body {
-	overflow-y: hidden;
-	background-color: #000;
+	overflow: hidden;
+	background-color: #2C2C2C;
 }
 
 ul {
@@ -17,14 +17,21 @@ img {
 }
 
 #heatmapArea {
-	position: relative;
+	position: absolute;
 	top: 0;
-	float: right;
-	right: 20px;
-	width: 90px;
-	height: 98%;
-	background-color: #414141;
+	right: 9px;
+	width: 60px;
+	height: 100%;
 	cursor: pointer;
+	transition: all 0.25s ease;
+}
+
+.heatMapNormal {
+	background-color: #1A1E24;
+}
+
+.heatMapUnderFilter {
+	background-color: #293A29;
 }
 
 #taggingArea {
@@ -33,21 +40,32 @@ img {
 }
 
 #tagInputBoxHolder {
-	position: absolute;
 	display: none;
+	position: absolute;
+	top: -8px;
+	left: 132px;
+	width: 251px;
+	height: 59px;
+	padding-top: 9px;
+	padding-left: 10px;
+	background: white;
+	box-shadow: 6px 10px 13px rgba(0, 0, 0, 0.89);
 }
 
 #tagInputBox {
-	width: 200px;
-	height: 25px;
-	border-radius: 30px;
+	font-family: "Orienta";
+	width: 240px;
+	height: 48px;
 	text-indent: 6px;
 	outline: none;
+	font-size: 26px;
+	border: 1px solid rgb(192, 131, 39);
 }
 
 #tagList {
 	width: 0;
 	height: 0;
+	margin-top: 90px;
 }
 
 .tagWidget {
@@ -134,6 +152,26 @@ img {
 	overflow-x: hidden;
 }
 
+#container::-webkit-scrollbar {
+	width: 8px;
+}
+
+#container::-webkit-scrollbar-track {
+	-webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.3);
+	/* 	-webkit-border-radius: 10px; */
+	/* 	border-radius: 10px; */
+	/* 	background-color: red; */
+}
+
+#container::-webkit-scrollbar-thumb {
+	/* Enable these two to round off the corners */
+	/*-webkit-border-radius: 10px;*/
+	/*border-radius: 10px;*/
+	/* 	background: rgba(185, 185, 185, 0.8); */
+	background: #0487FF;
+	-webkit-box-shadow: inset 0 0 6px rgba(0,0,0,0.5);
+}
+
 #autopageContent {
 	margin-top: 30px;
 	width: 90%; /* When expanding photos, makes the "spilling" over to next row look nicer */
@@ -143,7 +181,7 @@ img {
 	margin: 1px;
 	cursor: pointer;
 	vertical-align: top;
-	border: 2px solid black;
+	border: 2px solid #222222;
 	-webkit-transition: all 0.5s ease;
 	-moz-transition: all 0.5s ease;
 	-o-transition: all 0.5s ease;
@@ -190,4 +228,19 @@ img.ui-selected {
 
 .filterDim {
 	border: 2px solid rgb(112, 255, 0);
+}
+
+#loadedPages {
+	z-index: 101;
+	background-color: #0487FF;
+}
+
+.progressIndicator {
+	position: fixed;
+	bottom: 0;
+	height: 6px;
+	background-color: rgb(0, 44, 109);
+	width: 100%;
+	z-index: 100;
+	transition: all 0.5s ease;
 }

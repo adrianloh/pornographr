@@ -6,7 +6,7 @@
 		<link href='http://fonts.googleapis.com/css?family=Orienta' rel='stylesheet' type='text/css'>
 	</head>
 	<body keyboard-events>
-	<div id="heatmapArea"></div>
+	<div id="heatmapArea" class="heatMapNormal"></div>
 	<div id="headerControls">
 		<div class="spinner" data-bind="visible: isLoading">
 			<div class="b red" ><div></div></div>
@@ -43,15 +43,15 @@
 		</div>
 	</div>
 	<div id="container" ng-controller="GalleryController" autoload-content-on-scroll>
-		<div id="autopageContent" selection-interactions>
-			<ul ng-repeat="photoRow in photoRows" bindonce bo-id="'photorow_' + $index" class="photoRow">
+		<div id="autopageContent" bindonce selection-interactions>
+			<ul ng-repeat="photoRow in photoRows" bo-id="photoRow.id" class="photoRow">
 				<li ng-repeat="photo in photoRow.images"
 					ng-if="!photo.ui.deleted"
 					bo-id="'holder_'+photo.id"
 					ng-class="{imageHolder: true, activeImage: activeImageId===photo.id, filterDim: (tagFilters.length>0 && photo.ui.dimwit)}">
 					<img bo-id="photo.id" bo-src="photo.src"
-					     ng-dblclick="onImageDblClick(photo, $index, $parent.$parent.$index)"
-					     on-finish-image-render />
+						ng-dblclick="onImageDblClick(photo, $index, photoRow.id)"
+						on-finish-image-render />
 					<div ng-if="photo.ui.xpanded" class="controlPanel">
 						<a bo-href="photo.o" class="originalLink">
 							<i class="icon-external-link-sign" ng-click="openOriginalLink($event, photo.o)"></i>
@@ -60,6 +60,8 @@
 				</li>
 			</ul>
 		</div>
+		<div id="loadedPages" ng-style="updateCurrentProgress()" class="progressIndicator"></div>
+		<div id="totalPages" class="progressIndicator"></div>
 	</div>
 	<script src="/js/jquery-2.0.3.min.js"></script>
 	<script src="/js/jquery-ui-1.10.3.custom.min.js"></script>
@@ -71,6 +73,7 @@
 	<script src="/js/heatmap.js"></script>
 	<script src="/js/firebase.js"></script>
 	<script src="/js/md5.js"></script>
+	<script src="/js/flickrAuth.js"></script>
 	<script src="/js/flickrFactory.js"></script>
 	<script src="/js/main.js"></script>
 	</body>
