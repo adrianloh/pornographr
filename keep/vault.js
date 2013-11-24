@@ -140,3 +140,22 @@ $rootScope.$on("intersection_refreshFilters", function() {
 		}
 	}
 });
+
+function createPhotoSet(title, listOfPhotoIds) {
+	var primaryPhotoId = listOfPhotoIds[0],
+		data2 = {
+			api_key: flickrAuth.key,
+			auth_token: flickrAuth.token,
+			format: 'json',
+			nojsoncallback: 1,
+			method: 'flickr.photosets.create',
+			primary_photo_id: primaryPhotoId,
+			title: title
+		};
+	data2.api_sig = flickrAuth.sign(data2);
+	var oParser = new DOMParser();
+	return $http({method: 'GET', url:path, params:data2}).success(function(xml, status, headers, config) {
+		var doc = oParser.parseFromString(xml, "text/xml");
+		return doc.getElementsByTagName("rsp")[0].getAttribute("stat")==='ok';
+	});
+}

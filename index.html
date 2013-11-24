@@ -1,5 +1,6 @@
 <html ng-app="Pornographr">
 	<head>
+		<title ng-bind="mainTitle">Fuck My Ass, Daddy</title>
 		<link rel="stylesheet" type="text/css" href="/css/index.css">
 		<link rel="stylesheet" type="text/css" href="/css/spinner.css">
 		<link href="//netdna.bootstrapcdn.com/font-awesome/3.2.1/css/font-awesome.css" rel="stylesheet">
@@ -15,7 +16,11 @@
 			<div class="b green" ><div></div></div>
 		</div>
 	</div>
-	<div id="taggingArea" ng-controller="TaggingController">
+	<div id="taggingArea" ng-controller="TaggingController" active-tag-tooltip>
+		<div id="tagger-tooltip"
+			ng-if="activeTag().length>0">
+			<div class="tagger-tooltip-content" ng-bind="activeTag()"></div>
+		</div>
 		<div id="tagInputBoxHolder">
 			<form input-box-ops="textValue">
 				<input id="tagInputBox" type="text" ng-model="textValue" name="text" />
@@ -33,7 +38,7 @@
 					<i class="icon-circle"></i>
 				</div>
 				<div class="filterTagButton" ng-click="toggleTagFilter(widget.name)">
-					<i ng-class="tagFilters.indexOf(widget.name)>=0 ? 'icon-eye-open' : 'icon-eye-close' "></i>
+					<i ng-class="filterVisibiltyIconStyle(widget.name)"></i>
 				</div>
 				<div ng-class="{shortcutNumber: true, editingShortcutNumber: shortcuts.indexOf(widget.name)<0}"
 					ng-click="assignShortcut(widget.name, $event)"
@@ -65,13 +70,14 @@
 	</div>
 	<script src="/js/jquery-2.0.3.min.js"></script>
 	<script src="/js/jquery-ui-1.10.3.custom.min.js"></script>
-    <script src="/js/angular-1.2.2.js"></script>
+    <script src="/js/angular-1.2.2.min.js"></script>
 	<script src="/js/bindonce.js"></script>
     <script src="/js/knockout-3.0.0.js"></script>
 	<script src="/js/jquery.ba-throttle-debounce.min.js"></script>
 	<script src="/js/jquery.scrollTo.js"></script>
 	<script src="/js/heatmap.js"></script>
 	<script src="/js/firebase.js"></script>
+	<script src="/js/intersection.js"></script>
 	<script src="/js/md5.js"></script>
 	<script src="/js/flickrAuth.js"></script>
 	<script src="/js/flickrFactory.js"></script>

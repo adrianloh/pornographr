@@ -70,7 +70,7 @@ img {
 
 .tagWidget {
 	height: 20px;
-	width: 250px;
+	width: 200px;
 	color: white;
 	border-radius: 10px;
 	background-color: rgba(32, 29, 29, 0.88);
@@ -174,7 +174,7 @@ img {
 
 #autopageContent {
 	margin-top: 30px;
-	width: 90%; /* When expanding photos, makes the "spilling" over to next row look nicer */
+	width: 95%;
 }
 
 .imageHolder {
@@ -243,4 +243,27 @@ img.ui-selected {
 	width: 100%;
 	z-index: 100;
 	transition: all 0.5s ease;
+}
+
+#tagger-tooltip {
+	position: fixed;
+	font-size: 12px;
+	font-family: "Orienta";
+	width: 86px;
+	height: 17px;
+	background-color: rgba(32, 29, 29, 0.88);
+	z-index: 10;
+	align-content: center;
+	border-radius: 7px;
+	color: white;
+	border: 1px solid #535353;
+	display: none;
+	box-shadow: 4px 6px 8px rgba(0, 0, 0, 0.6);
+}
+
+.tagger-tooltip-content {
+	text-align: center;
+	line-height: 15px;
+	margin-left: auto;
+	margin-right: auto;
 }

@@ -4,29 +4,34 @@ var Flickr = angular.module('flickrFactory', ['flickrAuth']);
 
 Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 
-	var path="http://www.flickr.com/services/rest/";
+	var factory = {},
+		path="http://www.flickr.com/services/rest/",
+		doNotRender = ['deleteme'],
+		search_terms = null;
 
-	var factory = {};
-	factory.db = {};
-	factory.photoidOfLastImage = "";
 	factory.photoRows = [];
-	factory.stream = [];
-	factory.tags = {};
-	factory.photosets = {};
-	factory.tags.deleteme = {};
-	factory.doNotRender = ['deleteme'];
-	factory.tagImages = function(listOfPhotoIds, tag) {
-		return listOfPhotoIds.map(function(photoId) {
-			return factory.tagImage(photoId, tag);
-		});
-	};
 
-	var MAX_WIDTH = $("#autopageContent").width()*0.8,
+	var MAX_WIDTH = $("#autopageContent").width()*0.88,
 		currentPage = 0;
 
-	factory.upPage = 0;
-	factory.downPage = 0;
-	factory.totalPages = 1;
+	/* For the benefit of fast lookups to get coordinate
+	points for generating heatmap. Set from #renderImages */
+	var whichRowIdAmI = {}, // Maps a photoId ==> rowId
+		idsInRow = {};      // Maps rowId ==> [list_of_photoIds_in_order_of_insertion]
+
+	function initDefaults() {
+		factory.photoRows.splice(0,1000000);
+		factory.db = {};
+		factory.stream = [];
+		factory.photoidOfLastImage = "";
+		factory.tags = {};
+		factory.tags.deleteme = {};
+		factory.upPage = 0;
+		factory.downPage = 0;
+		factory.totalPages = 1;
+	}
+
+	initDefaults();
 
 	function associateTagWithImage(tag, increment, photoId) {
 		if (tag.length<=1 || tag.match(/vision:/)) {
@@ -59,23 +64,6 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 		});
 	}
 
-	function getLeader() {
-		var data2 = {
-			api_key: flickrAuth.key,
-			auth_token: flickrAuth.token,
-			format: 'json',
-			nojsoncallback: 1,
-			method: 'flickr.photos.search',
-			page: 1,
-			user_id: flickrAuth.userid,
-			per_page: 1,
-			content_type: 7,
-			sort: 'date-posted-desc'
-		};
-		data2.api_sig = flickrAuth.sign(data2);
-		return $http({method: 'GET', url:path, params:data2});
-	}
-
 	function fetchPage(page, perPage, callback) {
 		var oParser = new DOMParser(),  // We're using XML vs JSON for this particular request because $http seems to cache it
 			data2 = {
@@ -90,20 +78,20 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 			extras: 'url_n, url_o, url_t, last_update, tags',
 			sort: 'date-posted-desc'
 		};
+		if (search_terms!==null) {
+			data2.tags = search_terms;
+		}
 		data2.api_sig = flickrAuth.sign(data2);
-		getLeader().then(function(res1) {
-			$http({method: 'GET', url:path, params:data2}).then(function(res2) {
-				var o = {
-					context: res1.data,
-					doc: oParser.parseFromString(res2.data, "text/xml")
-				};
-				var res = o.doc.getElementsByTagName("rsp")[0];
-				if (res.getAttribute("stat")==='ok') {
-					callback(o);
-				} else {
-					console.error("ERROR: fetchPage page " + page);
-				}
-			});
+		$http({method: 'GET', url:path, params:data2}).then(function(res2) {
+			var o = {
+				doc: oParser.parseFromString(res2.data, "text/xml")
+			};
+			var res = o.doc.getElementsByTagName("rsp")[0];
+			if (res.getAttribute("stat")==='ok') {
+				callback(o);
+			} else {
+				console.error("ERROR: fetchPage page " + page);
+			}
 		});
 	}
 
@@ -111,6 +99,15 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 		factory.upPage = page;
 		factory.downPage = page;
 		currentPage = page;
+		factory.fetchMoreImages($scope, 0);
+	};
+
+	factory.initSearch = function($scope, commaDelitedTerms, page) {
+		initDefaults();
+		factory.upPage = page;
+		factory.downPage = page;
+		currentPage = page;
+		search_terms = commaDelitedTerms;
 		factory.fetchMoreImages($scope, 0);
 	};
 
@@ -128,16 +125,8 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 			currentPage = factory.upPage;
 		}
 		fetchPage(currentPage, 500, function(resp) {
-			var ctxt = resp.context,    // This is JSON
-				doc = resp.doc,         // This is XML
-				total = parseInt(ctxt.photos.total, 10),
-				first = ctxt.photos.photo[0].id,
-				context = {
-					page: currentPage,
-					first: first,
-					total: total
-				};
-			var injectPhotos = [],
+			var doc = resp.doc,         // This is XML
+				injectPhotos = [],
 				photoXMLElements = doc.getElementsByTagName("photo");
 			factory.totalPages = parseInt(doc.getElementsByTagName("photos")[0].getAttribute("pages"),10);
 			$.each(photoXMLElements, function(i, photo) {
@@ -150,14 +139,13 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 						o: photo.getAttribute("url_o"),
 						tags: photo.getAttribute("tags").split(" "),
 						updated: photo.getAttribute("lastupdate"),
-						context: context,
 						ui: {
 							xpanded: false,
 							deleted: false,
 							dimwit: false
 						}
 					};
-					if (p.tags.indexOf("deleteme")<0 && factory.db[p.id]===undefined) {
+					if (Set.intersection2(doNotRender, p.tags).length===0 && factory.db[p.id]===undefined) {
 						injectPhotos.push(p);
 						p.tags.forEach(function(tag) {
 							associateTagWithImage(tag, 1, p.id);
@@ -176,11 +164,6 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 			}
 		});
 	};
-
-	// For the benefit of fast lookups to get coordinate
-	// points for generating heatmap
-	var whichRowIdAmI = {},
-		idsInRow = {};
 
 	factory.getCoordinatesOfPhotoId = function(photoId) {
 		var rowId = whichRowIdAmI[photoId],
@@ -262,7 +245,7 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 			if (res.stat==='ok') {
 				var tagId = null;
 				try {
-					tagId = res.photo.tags.tag.filter(function(tagData) { return tagData.raw===tag; })[0].id;
+					tagId = res.photo.tags.tag.filter(function(tagData) { return tagData.raw.toLowerCase()===tag.toLowerCase(); })[0].id;
 				} catch(e) { }
 				if (tagId!==null) {
 					data2.method = 'flickr.photos.removeTag';
@@ -282,25 +265,6 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 			}
 		});
 	};
-
-	function createPhotoSet(title, listOfPhotoIds) {
-		var primaryPhotoId = listOfPhotoIds[0],
-			data2 = {
-				api_key: flickrAuth.key,
-				auth_token: flickrAuth.token,
-				format: 'json',
-				nojsoncallback: 1,
-				method: 'flickr.photosets.create',
-				primary_photo_id: primaryPhotoId,
-				title: title
-			};
-		data2.api_sig = flickrAuth.sign(data2);
-		var oParser = new DOMParser();
-		return $http({method: 'GET', url:path, params:data2}).success(function(xml, status, headers, config) {
-			var doc = oParser.parseFromString(xml, "text/xml");
-			return doc.getElementsByTagName("rsp")[0].getAttribute("stat")==='ok';
-		});
-	}
 
 	function getUserTags() {
 		var data2 = {

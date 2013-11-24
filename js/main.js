@@ -5,6 +5,37 @@ function has_key(o,k) {
 	return !(o[k]===undefined);
 }
 
+function regulateFunc(frequency, funcToRegulate) {
+	var buffer = [], isexcuted = false;
+	function regulatedFunc() {
+		var that = this;
+		if (isexcuted) {
+			buffer.push(arguments);
+			return;
+		}
+		isexcuted = true;
+		setTimeout(function() {
+			var doAgain = buffer.length>0,
+				lastArg = doAgain ? buffer.splice(-1)[0] : [];
+			buffer = [];
+			isexcuted = false;
+			if (doAgain) {
+				if (lastArg.length===0) {
+					regulatedFunc();
+				} else {
+					regulatedFunc.apply(that, lastArg);
+				}
+			}
+		}, frequency);
+		if (arguments.length===0) {
+			funcToRegulate();
+		} else {
+			funcToRegulate.apply(that, arguments);
+		}
+	}
+	return regulatedFunc;
+}
+
 var HeaderControls = (function() {
 	var self = {};
 	self.isLoading = ko.observable(false);
@@ -24,6 +55,20 @@ var Pornographr = angular.module('Pornographr', ['flickrFactory', 'flickrAuth', 
 Pornographr.config(function ($anchorScrollProvider, $locationProvider) {
 	$locationProvider.html5Mode(true);
 	$anchorScrollProvider.disableAutoScrolling();
+});
+
+Pornographr.directive('activeTagTooltip', function ($timeout, flickrFactory) {
+	return {
+		restrict: 'A',
+		link: function(scope, element, attrs) {
+			$("#container").mousemove(function(e) {
+				$('#tagger-tooltip').css('left', e.pageX + 0).css('top', e.pageY + 30).css('display', 'block');
+			});
+			$("#heatmapArea").mouseenter(function() {
+				$('#tagger-tooltip').hide();
+			});
+		}
+	};
 });
 
 Pornographr.directive('onFinishImageRender', function ($timeout, flickrFactory) {
@@ -96,6 +141,19 @@ Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrF
 				editingShorcutForTag = tagName;
 			});
 
+			function toggleWidget(kc) {
+				var index = kc-48-1,
+					newTag = tagService.shortcuts[index];
+				if (newTag) {
+					$rootScope.$broadcast("keyboardArmTag", {
+						tag: newTag
+					});
+				}
+			}
+
+			var numberKeyIsUp = true,
+				lastKeyPlease = null,
+				keyDownTime = Date.now();
 			$document.on("keydown", function(e) {
 				var keyCode = e.keyCode;
 				if (has_key(boundKeyCodes, keyCode)) {
@@ -122,25 +180,26 @@ Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrF
 						} else if ($(document.activeElement)[0].tagName.toLowerCase()!=='input') {
 							// We're entering numbers but not into the input box,
 							// activate a tag for painting
-							var index = keyCode-48-1,
-								newTag = tagService.shortcuts[index];
-							if (newTag) {
-								$rootScope.$broadcast("keyboardArmTag", {
-									tag: newTag
-								});
-							}
+							if (!numberKeyIsUp) return;
+							numberKeyIsUp = false;
+							keyDownTime = Date.now();
+							toggleWidget(keyCode);
 							e.preventDefault();
 						}
 					} else {
 						switch (keyCode)
 						{
 							case keys.arrow_right:
-								$rootScope.$broadcast("goToNextImage");
-								e.preventDefault();
+								if ($(document.activeElement)[0].tagName.toLowerCase()!=='input') {
+									$rootScope.$broadcast("goToNextImage");
+									e.preventDefault();
+								}
 								break;
 							case keys.arrow_left:
-								$rootScope.$broadcast("goToPreviousImage");
-								e.preventDefault();
+								if ($(document.activeElement)[0].tagName.toLowerCase()!=='input') {
+									$rootScope.$broadcast("goToPreviousImage");
+									e.preventDefault();
+								}
 								break;
 							case keys.tilde:
 								flickrFactory.fetchMoreImages($scope, true);
@@ -181,7 +240,20 @@ Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrF
 				var keyCode = e.keyCode;
 				if (has_key(boundKeyCodes, keyCode)) {
 					if (numbers_over_zero.hasOwnProperty(keyCode)) {
-						// Pass
+						if (Date.now()-keyDownTime>1000) {
+							// We are temporarily activating a tag
+							if (lastKeyPlease!==null) {
+								toggleWidget(lastKeyPlease);
+							}
+						} else {
+							// We are swicthing tags
+							if (tagService.tagFilters.length===0) {
+								lastKeyPlease = null
+							} else {
+								lastKeyPlease = keyCode;
+							}
+						}
+						numberKeyIsUp = true;
 					} else {
 						switch (keyCode)
 						{
@@ -317,7 +389,9 @@ Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, 
 				});
 				// Save the first visible row in localStorage so we can recall
 				// it later when we reload the site
-				localStorage.firstVisibleRow = rowsInView[0].getAttribute("id");
+				if (rowsInView.length>0) {
+					localStorage.firstVisibleRow = rowsInView[0].getAttribute("id");
+				}
 				// Tag all images in the visible rows as selectable
 				rowsInView.find("img").addClass(selectableClassName);
 				$rootScope.$broadcast("viewIsRefreshed");
@@ -359,21 +433,24 @@ Pornographr.directive('draggableWidget', function () {
 	}
 });
 
-Pornographr.directive('inputBoxOps', function () {
+Pornographr.directive('inputBoxOps', function ($rootScope) {
 	return {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
 			$(element).on("submit", function(e) {
-				var kv = scope.textValue.split(":"), // textValue is the ng-model on $("#tagInputBox")
-					key = $.trim(kv[0]),
-					value = $.trim(kv[1]);
-				if (key.match(/hide/)) {
-					// Hide images matching tag
-				} else if (key.match(/tag/)) {
-					scope.createWidgetWithTag(value);
-					scope.$apply(function() {
-						scope.textValue = "tag: ";
-					});
+				var textInput = scope.textValue;
+				if (textInput.match(/:/)) {
+					var kv = textInput.split(":"), // textValue is the ng-model on $("#tagInputBox")
+						key = $.trim(kv[0]),
+						value = $.trim(kv[1]);
+					if (key.match(/tag/)) {
+						scope.createWidgetWithTag(value);
+						scope.$apply(function() {
+							scope.textValue = "tag: ";
+						});
+					}
+				} else {
+					$rootScope.$broadcast("initSearch", textInput);
 				}
 			});
 		}
@@ -393,13 +470,15 @@ Pornographr.factory("heatFactory", function(flickrFactory) {
 
 	var factory = {},
 		Heat,
-		el = $("#heatmapArea"),
+		heatContainer = "heatmapArea",
+		rowSelector = ".photoRow",
+		el = $("#" + heatContainer),
 		container = $("#container");
 
 	factory.dataPoints = ko.observableArray([]);
 
 	var waitForRows = setInterval(function() {
-		if ($(".photoRow").width()!==null) {
+		if ($(rowSelector).width()!==null) {
 			launch();
 			clearInterval(waitForRows);
 		}
@@ -409,22 +488,26 @@ Pornographr.factory("heatFactory", function(flickrFactory) {
 
 		var	width_heat = el.width()*0.95,
 			height_heat = el.height()*0.95,
-			width_row = $(".photoRow").width(),
+			width_row = $(rowSelector).width(),
 			width_cell = 80;
 
-		Heat = h337.create({"element":document.getElementById("heatmapArea"), "radius":10, "visible":true});
+		Heat = h337.create({
+			"element":document.getElementById(heatContainer),
+			"radius": 8,
+			"visible":true
+		});
 		container.scrollTo();
 
 		Heat.get("canvas").onclick = function(ev){
 			var pos = h337.util.mousePosition(ev),
 				row = parseInt((pos[1]/height_heat)*(flickrFactory.photoRows.length-1), 10);
-			container.scrollTo($($(".photoRow")[row]), 600);
+			container.scrollTo($($(rowSelector)[row]), 600);
 		};
 
 		Heat.newData = function(coor) {
 			// Where coor is [index_of_photo_in_row, id_of_row]
 			var x = coor[0] * width_cell,
-				y = $(".photoRow").index($("#"+coor[1])),
+				y = $(rowSelector).index($("#"+coor[1])),
 				elX = (x/width_row)*width_heat,
 				elY = (y/flickrFactory.photoRows.length)*height_heat;
 			Heat.store.addDataPoint(elX, elY);
@@ -435,8 +518,8 @@ Pornographr.factory("heatFactory", function(flickrFactory) {
 	factory.drawFilterMap = function(listOfPhotoIds) {
 		el.addClass("heatMapUnderFilter");
 		Heat.clear();
-		var i = listOfPhotoIds.length, coor;
-		while(i--) {
+		var i, coor;
+		for (i=0; i<listOfPhotoIds.length; i++) {
 			coor = flickrFactory.getCoordinatesOfPhotoId(listOfPhotoIds[i]);
 			Heat.newData(coor);
 		}
@@ -485,6 +568,7 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, $timeou
 
 	Peekaboo.taggingController = $scope;
 
+	$scope.isLoading = HeaderControls.isLoading;
 	$scope.existingWidgets = {};
 	$scope.tagWidgets = [];
 	$scope.shortcuts = tagService.shortcuts;
@@ -496,6 +580,15 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, $timeou
 		saveData.shortcuts = $scope.shortcuts;
 		localStorage.taggingController = JSON.stringify(saveData);
 	}
+
+	var mustContainAllTerms = true,
+		redrawHeatMap = regulateFunc(2000, function(qualifiedPhotos) {
+		if (qualifiedPhotos) {
+			heatFactory.drawFilterMap(qualifiedPhotos);
+		} else {
+			heatFactory.refresh();
+		}
+	});
 
 	function refreshFilters() {
 		if ($scope.tagFilters.length>0) {
@@ -510,14 +603,18 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, $timeou
 						}
 					} catch(e) { /*pass*/ }
 				});
-				photo.ui.dimwit = isTagged.length===$scope.tagFilters.length;
+				if (mustContainAllTerms) {
+					photo.ui.dimwit = isTagged.length===$scope.tagFilters.length;
+				} else {
+					photo.ui.dimwit = isTagged.length>0;
+				}
 				if (photo.ui.dimwit) {
 					qualifiedPhotos.push(photoId);
 				}
 			}
-			heatFactory.drawFilterMap(qualifiedPhotos);
+			redrawHeatMap(qualifiedPhotos);
 		} else {
-			heatFactory.refresh();
+			redrawHeatMap();
 		}
 	}
 
@@ -619,6 +716,18 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, $timeou
 		persist();
 	};
 
+	$scope.filterVisibiltyIconStyle = function(tagName) {
+		var iconStyle = 'icon-eye-close';
+		if ($scope.tagFilters.indexOf(tagName)>=0) {
+			if (mustContainAllTerms && $scope.tagFilters.length>1) {
+				iconStyle = 'icon-link';
+			} else {
+				iconStyle = 'icon-eye-open';
+			}
+		}
+		return iconStyle;
+	};
+
 	$scope.toggleTagFilter = function(tagName) {
 		var index = $scope.tagFilters.indexOf(tagName);
 		if (index>=0) {
@@ -627,8 +736,17 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, $timeou
 				tagService.resetTileColors();
 			}
 		} else {
-			if (!keyboardService.shiftKeyDown) {
+			if (!keyboardService.shiftKeyDown && !keyboardService.altKeyDown) {
+				// If no modifer keys are held down, then we're just switching
+				// between filters, so, empty them out.
 				$scope.tagFilters.splice(0, 1000);
+			} else if (keyboardService.altKeyDown) {
+				// If we're holding down ALT, then perform an ANY/OR search e.g
+				// show all photos containing either terms
+				mustContainAllTerms = false;
+			} else {
+				// Show photos that contain ALL terms
+				mustContainAllTerms = true;
 			}
 			$scope.tagFilters.push(tagName);
 		}
@@ -663,39 +781,38 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 	$scope.tagFilters = tagService.tagFilters;
 	$scope.activeImageId = null;
 
-	var checkReadyToScroll,
+	var pathPrefix = "/stream/",
 		container = $("#container"),
-		lastBookmarkImageId = null,
-		m = $location.path().match(/\/(\d+)/);
+		scrollToLastSavedPositionAfterLoad = null,
+		m = $location.path().match(/\/(stream|search).+\d+/);
 
 	function init() {
 		if (m) {
-			var page = parseInt(m[1],10),
+			var args = $location.path().split("/"),
+				page = parseInt(args.slice(-1),10),
+				isStream = args[1]==='stream',
+				search_term = isStream ? null : args[2],
 				photoId = $location.hash(),
 				selector = null;
+			pathPrefix = $location.path().replace(/\d+$/,"");
 			if (photoId.length>0 && photoId!=='null') {
-				lastBookmarkImageId = photoId;
 				selector = "#"+photoId;
 			} else if (photoId==='null' && localStorage.hasOwnProperty('firstVisibleRow')) {
 				// If there is a null in the hash, this *always* automatically returns you to
 				// the last position you you were viewing when you reload the site, which
 				// means, to jump to a specific page, you must give it a url *without* a hash
 				page = parseInt(localStorage.firstVisibleRow.split("_")[1]);
-				lastBookmarkImageId = 'useLastPosition';
 				selector = "#"+localStorage.firstVisibleRow;
-				$location.path("/"+page);
+				$location.replace();
+				$location.path(pathPrefix + page);
 			}
 			if (selector!==null) {
-				// Wait for the element to appear, then scroll to it.
-				// If the element *never* appears, then the "lastImageRendered"
-				// event callback will clear this check
-				checkReadyToScroll = setInterval(function() {
+				scrollToLastSavedPositionAfterLoad = function() {
+					scrollToLastSavedPositionAfterLoad = null;
 					var el = $(selector);
 					if (el.length>0) {
-						clearInterval(checkReadyToScroll);
-						lastBookmarkImageId = null;
 						$scope.isAutoScroll = true;
-						container.scrollTo(el, 500);
+						container.scrollTo(el, 500, {offset:{top:-150, left:0}});
 						var photo = flickrFactory.db[photoId];
 						if (photo) {
 							$scope.$apply(function() {
@@ -706,11 +823,19 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 							$scope.isAutoScroll = false;
 						}, 1500);
 					}
-				}, 500);
+				};
 			}
-			flickrFactory.initOnPage($scope, page);
+			if (isStream) {
+				$rootScope.mainTitle = "Photostream | Page " + page;
+				flickrFactory.initOnPage($scope, page);
+			} else {
+				$rootScope.mainTitle = "Search for " + search_term + " | Page " + page;
+				flickrFactory.initSearch($scope, search_term, page);
+			}
 		} else {
-			$location.path("/1");
+			$location.replace();
+			$location.path("/stream/1");
+			$rootScope.mainTitle = "Photostream | Page " + 1;
 			flickrFactory.initOnPage($scope, 1);
 		}
 	}
@@ -726,16 +851,21 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 	$scope.$on('lastImageRendered', function(renderFinishedEvent) {
 		$scope.isLoading(false);
 		$rootScope.$broadcast("refreshFilters");
-		if (lastBookmarkImageId!==null) {
-			setTimeout(function() {
-				clearInterval(checkReadyToScroll);
-				lastBookmarkImageId = null;
-			}, 1000);
+		if (typeof(scrollToLastSavedPositionAfterLoad)==='function') {
+			scrollToLastSavedPositionAfterLoad();
 		}
 		if (firstLoad) {
 			container.trigger("scroll"); // To trigger the ability to select
 			firstLoad = false;
 		}
+	});
+
+	$rootScope.$on("initSearch", function(event, search_term) {
+		var page = 1;
+		pathPrefix = "/search/" + search_term + "/";
+		$location.path(pathPrefix + page);
+		$rootScope.mainTitle = "Search for " + search_term + " | Page " + page;
+		flickrFactory.initSearch($scope, search_term, page);
 	});
 
 	function expandPhoto(photo) {
@@ -769,7 +899,13 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 				$location.replace();
 			}
 			if (currentHash!==photo.id) {
-				$location.path("/" + pageNumber);
+				if (pathPrefix.match(/search/)) {
+					var search_term = pathPrefix.split("/").slice(-2)[0];
+					$rootScope.mainTitle = "Search for " + search_term + " | Image " + photo.id;
+				} else {
+					$rootScope.mainTitle = "Photostream | Image " + photo.id;
+				}
+				$location.path(pathPrefix + pageNumber);
 				$location.hash(photo.id);
 			}
 			expandPhoto(photo);
@@ -817,25 +953,26 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 		$scope.activeImageId = nextPhotoId;
 		$scope.$apply(function() {
 			expandPhoto(flickrFactory.db[nextPhotoId]);
-			container.scrollTo($("#"+nextPhotoId)[0], 600, {over:{top:-0.8, left:0}} );
+			container.scrollTo($("#"+nextPhotoId)[0], {offset:{top:-200, left:0}} );
 		});
 	}
 
 	// In the so-called "Angular world", where is this *supposed* to go?
 	window.addEventListener("popstate", function(e) {
-		if ($location.hash()==="null") {
-			return;
-		}
-		var photo = flickrFactory.db[$location.hash()];
-		if (photo) {
-			$scope.$apply(function() {
-				expandPhoto(photo);
-			});
-			$scope.isAutoScroll = true;
-			$anchorScroll();
-			setTimeout(function() {
-				$scope.isAutoScroll = false;
-			}, 1500);
+		var hash = $location.hash(),
+			path = $location.path();
+		if (hash.length>0 && hash!=='null' && $("#"+hash).length!==0) {
+			var photo = flickrFactory.db[hash];
+			if (photo) {
+				$scope.$apply(function() {
+					expandPhoto(photo);
+				});
+				$scope.isAutoScroll = true;
+				$anchorScroll();
+				setTimeout(function() {
+					$scope.isAutoScroll = false;
+				}, 1500);
+			}
 		}
 	});
 
