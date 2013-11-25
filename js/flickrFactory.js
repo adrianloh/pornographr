@@ -145,7 +145,7 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 						size_thumb: {w: parseInt(photo.getAttribute("width_t"),10), h: parseInt(photo.getAttribute("height_t"),10)},
 						src: photo.getAttribute("url_t"),
 						o: photo.getAttribute("url_o"),
-						tags: photo.getAttribute("tags").split(" "),
+						tags: photo.getAttribute("tags").split(" ").map(function(s) { return s.toLowerCase(); }),
 						updated: photo.getAttribute("lastupdate"),
 						ui: {
 							xpanded: false,

@@ -247,7 +247,7 @@ Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrF
 				var keyCode = e.keyCode;
 				if (has_key(boundKeyCodes, keyCode)) {
 					if (numbers_over_zero.hasOwnProperty(keyCode)) {
-						if (Date.now()-keyDownTime>1000) {
+						if (Date.now()-keyDownTime>500) {
 							// We are temporarily activating a tag
 							if (lastKeyPlease!==null) {
 								toggleWidget(lastKeyPlease);
@@ -583,8 +583,6 @@ Pornographr.factory("tagService", function() {
 
 Pornographr.controller("TaggingController", function($rootScope, $scope, $timeout, heatFactory, flickrFactory, tagService, keyboardService) {
 
-	Peekaboo.taggingController = $scope;
-
 	$scope.existingWidgets = {};
 	$scope.tagWidgets = [];
 	$scope.shortcuts = tagService.shortcuts;
@@ -592,7 +590,7 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, $timeou
 
 	// The draggableWidget directive uses this to determine whether to "break" the widget out
 	// of $("#tagList") when its created so its near the user. This is set to false right after
-	// first load when recalling old widgets that have been saved.
+	// first load/restoring saved widgets.
 	$scope.isDoneReloadingTags = false;
 
 	function persist() {
@@ -796,9 +794,6 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, $timeou
 
 Pornographr.controller("GalleryController", function($rootScope, $scope, $location, $anchorScroll, $timeout, flickrAuth, flickrFactory, keyboardService, heatFactory, tagService) {
 
-	Peekaboo.flickrFactory = flickrFactory;
-	Peekaboo.galleryController = $scope;
-
 	$scope.photoRows = flickrFactory.photoRows;
 	$scope.isAutoScroll = false;
 	$scope.tagFilters = tagService.tagFilters;
@@ -952,6 +947,7 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 
 	$scope.updateCurrentProgress = function() {
 		// Called by ng-style from $("#loadedPages")
+		// to draw the horizontal progress bar
 		var lower = flickrFactory.upPage,
 			upper = flickrFactory.downPage,
 			total = flickrFactory.totalPages,

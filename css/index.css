@@ -94,23 +94,27 @@ img {
 	margin-top: 2px;
 	margin-left: 5px;
 	font-size:15px;
-	color: white;
+	color: rgb(97, 97, 97);
 	cursor: pointer;
 }
 
 .filterTagButton {
 	float: right;
 	font-size:18px;
-	color: white;
+	color: rgb(104, 104, 104);
 	margin-top: 1px;
 	margin-right: 8px;
 	cursor: pointer;
 }
 
+.filterTagButtonActive {
+	color: rgb(238, 238, 238);
+}
+
 .armTagButton {
 	float: right;
 	font-size: 15px;
-	color: white;
+	color: rgb(105, 27, 27);
 	margin-top: 2px;
 	margin-right: 5px;
 	cursor: pointer;

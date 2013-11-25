@@ -1,3 +1,5 @@
+"use strict";
+
 var FlickrAuth = angular.module('flickrAuth', []);
 
 FlickrAuth.factory("flickrAuth", function($http) {
@@ -20,42 +22,73 @@ FlickrAuth.factory("flickrAuth", function($http) {
 		});
 		return MD5(data.join(""));
 	};
-	if (!localStorage.hasOwnProperty("auth_token")) {
-		$.getJSON("/authenticate", function(res) {
-			var authorizePage = res.url,
-				frob = res.frob,
-				t1 = Date.now();
-			window.open(authorizePage);
-			var checkForToken = setInterval(function() {
-				if (Date.now()-t1>60000) {
-					console.error("Abort getting token");
-					clearInterval(checkForToken);
+
+	function getAuthorizationUrl(callback) {
+		var preFrobData = {
+			api_key: self.key,
+			format: 'json',
+			nojsoncallback: 1,
+			method: 'flickr.auth.getFrob'
+		};
+		preFrobData.api_sig = self.sign(preFrobData);
+		$http({method: 'GET', url:"http://api.flickr.com/services/rest/", params: preFrobData}).then(function(resObject) {
+			var _frob = resObject.data.frob._content,
+				permissions = "delete",
+				redirectData = {
+					api_key: self.key,
+					perms: permissions,
+					frob: _frob
+				},
+				sig = self.sign(redirectData),
+				redirect_url = "http://flickr.com/services/auth/?api_key=" + self.key + "&perms=" + permissions + "&frob=" + _frob + "&api_sig=" + sig;
+			callback({
+				frob: _frob,
+				url: redirect_url
+			});
+		});
+	}
+
+	function getTokenFromFrob(frob, callback) {
+		var getTokenData = {
+				api_key: self.key,
+				frob: frob,
+				format: 'json',
+				nojsoncallback: 1,
+				method: 'flickr.auth.getToken'
+			},
+			startTime = Date.now();
+		getTokenData.api_sig = self.sign(getTokenData);
+		var checkForAuthorization = setInterval(function() {
+			$http({method: 'GET', url:"http://api.flickr.com/services/rest/", params: getTokenData}).then(function(resObject) {
+				var res = resObject.data;
+				if (res.hasOwnProperty('auth')) {
+					clearInterval(checkForAuthorization);
+					callback(res)
+				} else if ((Date.now()-startTime)>60000) {
+					clearInterval(checkForAuthorization);
+					callback({error: "Timedout waiting for user"});
 				} else {
-					$.getJSON("/gettoken/"+frob, function(res) {
-						if (res.ok && self.token===null) {
-							console.warn("Got auth_token:" + res.token);
-							clearInterval(checkForToken);
-							self.token = res.token;
-							localStorage.auth_token = res.token;
-							var data2 = {
-								api_key: self.key,
-								auth_token: self.token,
-								format: 'json',
-								nojsoncallback: 1,
-								method: 'flickr.urls.getUserProfile'
-							};
-							data2.api_sig = self.sign(data2);
-							$http({method: 'GET', url:"http://www.flickr.com/services/rest/", params:data2}).then(function(resObject) {
-								self.userid = resObject.data.user.nsid;
-								localStorage.userid = self.userid;
-							});
-						} else {
-							console.error("Waiting for token...");
-							console.error(res);
-						}
-					});
+					console.warn("Still waiting for token, bub...");
 				}
-			}, 5000);
+			});
+		}, 5000);
+	}
+
+	if (!localStorage.hasOwnProperty("auth_token")) {
+		getAuthorizationUrl(function(res) {
+			var frob = res.frob,
+				url = res.url;
+			console.log("Go here: " + url);
+			getTokenFromFrob(frob, function(res) {
+				var token = res.auth.token._content,
+					userId = res.auth.user.nsid;
+				console.log("TOKEN: " + token);
+				console.log("USERID: " + userId);
+				self.token = token;
+				localStorage.auth_token = token;
+				self.userid = userId;
+				localStorage.userid = res.auth.user.nsid;
+			});
 		});
 	} else {
 		self.userid = localStorage.userid;

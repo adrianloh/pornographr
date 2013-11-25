@@ -15,6 +15,11 @@ server.configure(function() {
 	server.use('/css', express.static(path.join(__dirname, 'css')));
 });
 
+// Keep around as example of using regex match
+server.get(/img\/(.+)/, function(req, res) {
+	res.redirect(req.params[0]);
+});
+
 server.get("/authenticate", function(req, res) {
 	res.set('Content-Type', 'application/json');
 	flickr.getLoginUrl("delete", null, function(error, url, frob) {

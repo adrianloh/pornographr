@@ -34,10 +34,12 @@
 				<div class="deactivateTag" ng-click="removeTagWidget(widget)">
 					<i class="icon-remove-sign"></i>
 				</div>
-				<div ng-class="{armTagButton: true, armTagButtonArmed: activeTag()===widget.name}" ng-click="armTagWidget(widget.name)">
+				<div ng-class="{armTagButton: true, armTagButtonArmed: activeTag()===widget.name}"
+					ng-click="armTagWidget(widget.name)">
 					<i class="icon-circle"></i>
 				</div>
-				<div class="filterTagButton" ng-click="toggleTagFilter(widget.name)">
+				<div ng-class="{filterTagButton: true, filterTagButtonActive: tagFilters.indexOf(widget.name)>=0}"
+					ng-click="toggleTagFilter(widget.name)">
 					<i ng-class="filterVisibiltyIconStyle(widget.name)"></i>
 				</div>
 				<div ng-class="{shortcutNumber: true, editingShortcutNumber: shortcuts.indexOf(widget.name)<0}"
@@ -76,7 +78,6 @@
 	<script src="/js/jquery.ba-throttle-debounce.min.js"></script>
 	<script src="/js/jquery.scrollTo.js"></script>
 	<script src="/js/heatmap.js"></script>
-	<script src="/js/color-thief.js"></script>
 	<script src="/js/firebase.js"></script>
 	<script src="/js/intersection.js"></script>
 	<script src="/js/md5.js"></script>
