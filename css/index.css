@@ -55,7 +55,7 @@ img {
 }
 
 #tagInputBox {
-	font-family: "Orienta";
+	font-family: "Orienta", sans-serif;
 	width: 240px;
 	height: 48px;
 	text-indent: 6px;
@@ -135,7 +135,7 @@ img {
 .shortcutNumber {
     float: right;
     width: 14px;
-    font-family: "Orienta";
+    font-family: "Orienta", sans-serif;
     font-size: 14px;
     margin-right: 15px;
     margin-top: 2px;
@@ -272,4 +272,22 @@ img.ui-selected {
 	line-height: 15px;
 	margin-left: auto;
 	margin-right: auto;
+}
+
+#authorizeScreen {
+	margin: 50px auto;
+	width: 320px;
+	height: 490px;
+	background: whitesmoke;
+	padding: 20px;
+	border: 2px solid black;
+	display: none;
+}
+
+#authorizeText {
+	font-family: 'Indie Flower', cursive;
+	width: 230px;
+	margin: 10px auto;
+	text-align: center;
+	font-size: 17px;
 }

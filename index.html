@@ -5,8 +5,17 @@
 		<link rel="stylesheet" type="text/css" href="/css/spinner.css">
 		<link href="//netdna.bootstrapcdn.com/font-awesome/3.2.1/css/font-awesome.css" rel="stylesheet">
 		<link href='http://fonts.googleapis.com/css?family=Orienta' rel='stylesheet' type='text/css'>
+		<link href='http://fonts.googleapis.com/css?family=Indie+Flower' rel='stylesheet' type='text/css'>
 	</head>
 	<body keyboard-events>
+	<div id="authorizeScreen">
+		<div class="authorizeImageContainer">
+			<img src="/img/upskirt.jpg" />
+		</div>
+		<div id="authorizeText">
+			Go <a id="authorizeUrl" href="/" target="_blank">here</a> to let Taggr look up your skirt before we begin!
+		</div>
+	</div>
 	<div id="heatmapArea" class="heatMapNormal"></div>
 	<div id="headerControls">
 		<div class="spinner" my-head-is-spinning>
@@ -22,8 +31,8 @@
 			<div class="tagger-tooltip-content" ng-bind="activeTag()"></div>
 		</div>
 		<div id="tagInputBoxHolder">
-			<form input-box-ops="textValue">
-				<input id="tagInputBox" type="text" ng-model="textValue" name="text" />
+			<form input-box-ops>
+				<input id="tagInputBox" type="text" ng-model="fuck.textValue" name="text" />
 			</form>
 		</div>
 		<ul id="tagList">

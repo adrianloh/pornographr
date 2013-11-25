@@ -11,9 +11,9 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 
 	factory.photoRows = [];
 	factory.isBusyLoading = false;
+	factory.screen_width = 0;    // Set by the controller;
 
-	var MAX_WIDTH = $("#autopageContent").width()*0.88,
-		currentPage = 0;
+	var currentPage = 0;
 
 	/* For the benefit of fast lookups to get coordinate
 	points for generating heatmap. Date is populated by #renderImages
@@ -175,14 +175,14 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 
 	function renderImages(injectPhotos, currentP, direction) {
 		var activeRow,
-			currentWidth = MAX_WIDTH+1000,
+			currentWidth = factory.screen_width+1000,
 			method = direction >= 0 ? 'push' : 'unshift';
 		if (method==='unshift') {
 			injectPhotos.reverse();
 		}
 		injectPhotos.forEach(function(photo, i) {
 			currentWidth+=(photo.size_thumb.w+6);
-			if (currentWidth>MAX_WIDTH) {
+			if (currentWidth>factory.screen_width) {
 				currentWidth=0;
 				activeRow = {
 					id: "page_" + currentP + "_" + photo.id,

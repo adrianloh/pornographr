@@ -13,10 +13,11 @@ var flickr= new FlickrAPI(api_key, api_secret);
 server.configure(function() {
 	server.use('/js', express.static(path.join(__dirname, 'js')));
 	server.use('/css', express.static(path.join(__dirname, 'css')));
+	server.use('/img', express.static(path.join(__dirname, 'img')));
 });
 
 // Keep around as example of using regex match
-server.get(/img\/(.+)/, function(req, res) {
+server.get(/crazybitch\/(.+)/, function(req, res) {
 	res.redirect(req.params[0]);
 });
 

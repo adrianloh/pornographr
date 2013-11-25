@@ -78,6 +78,8 @@ FlickrAuth.factory("flickrAuth", function($http) {
 		getAuthorizationUrl(function(res) {
 			var frob = res.frob,
 				url = res.url;
+			$("#authorizeUrl").attr("href", url);
+			$("#authorizeScreen").show();
 			console.log("Go here: " + url);
 			getTokenFromFrob(frob, function(res) {
 				var token = res.auth.token._content,

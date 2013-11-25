@@ -40,8 +40,6 @@ function regulateFunc(frequency, funcToRegulate) {
 
 var firebase = new Firebase('https://oogly.firebaseio-demo.com/');
 
-var Peekaboo = {};
-
 var Pornographr = angular.module('Pornographr', ['flickrFactory', 'flickrAuth', 'pasvaz.bindonce']);
 
 Pornographr.config(function ($anchorScrollProvider, $locationProvider) {
@@ -454,8 +452,9 @@ Pornographr.directive('inputBoxOps', function ($rootScope) {
 	return {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
+			scope.fuck = {};
 			$(element).on("submit", function(e) {
-				var textInput = scope.textValue;
+				var textInput = scope.fuck.textValue;
 				if (textInput.match(/:/)) {
 					var kv = textInput.split(":"), // textValue is the ng-model on $("#tagInputBox")
 						key = $.trim(kv[0]),
@@ -865,8 +864,11 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 
 	var checkReady = setInterval(function(){
 		if (flickrAuth.userid!==null) {
-			init();
 			clearInterval(checkReady);
+			$("#authorizeScreen").hide();
+			container.show();
+			flickrFactory.screen_width = $("#autopageContent").width()*0.88;
+			init();
 		}
 	}, 1000);
 
