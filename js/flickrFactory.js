@@ -10,14 +10,22 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 		search_terms = null;
 
 	factory.photoRows = [];
+	factory.isBusyLoading = false;
 
 	var MAX_WIDTH = $("#autopageContent").width()*0.88,
 		currentPage = 0;
 
 	/* For the benefit of fast lookups to get coordinate
-	points for generating heatmap. Set from #renderImages */
+	points for generating heatmap. Date is populated by #renderImages
+	and used by factory.getCoordinatesOfPhotoId */
 	var whichRowIdAmI = {}, // Maps a photoId ==> rowId
 		idsInRow = {};      // Maps rowId ==> [list_of_photoIds_in_order_of_insertion]
+
+	factory.getCoordinatesOfPhotoId = function(photoId) {
+		var rowId = whichRowIdAmI[photoId],
+			index = idsInRow[rowId].indexOf(photoId);
+		return [index,rowId];
+	};
 
 	function initDefaults() {
 		factory.photoRows.splice(0,1000000);
@@ -95,27 +103,27 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 		});
 	}
 
-	factory.initOnPage = function($scope, page) {
+	factory.initOnPage = function(page) {
 		factory.upPage = page;
 		factory.downPage = page;
 		currentPage = page;
-		factory.fetchMoreImages($scope, 0);
+		factory.fetchMoreImages(0);
 	};
 
-	factory.initSearch = function($scope, commaDelitedTerms, page) {
+	factory.initSearch = function(commaDelitedTerms, page) {
 		initDefaults();
 		factory.upPage = page;
 		factory.downPage = page;
 		currentPage = page;
 		search_terms = commaDelitedTerms;
-		factory.fetchMoreImages($scope, 0);
+		factory.fetchMoreImages(0);
 	};
 
-	factory.fetchMoreImages = function($scope, direction) {
-		if ($scope.isLoading()) {
+	factory.fetchMoreImages = function(direction) {
+		if (factory.isBusyLoading) {
 			return;
 		}
-		$scope.isLoading(true);
+		factory.isBusyLoading = true;
 		if (direction>0) {
 			factory.downPage+=1;
 			currentPage = factory.downPage;
@@ -158,17 +166,11 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 			});
 			if (injectPhotos.length===0) {
 				console.warn("factory.fetchMoreImages got nothing to inject");
-				$scope.isLoading(false);
+				factory.isBusyLoading = false;
 			} else {
 				renderImages(injectPhotos, currentPage, direction);
 			}
 		});
-	};
-
-	factory.getCoordinatesOfPhotoId = function(photoId) {
-		var rowId = whichRowIdAmI[photoId],
-			index = idsInRow[rowId].indexOf(photoId);
-		return [index,rowId];
 	};
 
 	function renderImages(injectPhotos, currentP, direction) {

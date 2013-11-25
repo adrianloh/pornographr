@@ -9,7 +9,7 @@
 	<body keyboard-events>
 	<div id="heatmapArea" class="heatMapNormal"></div>
 	<div id="headerControls">
-		<div class="spinner" data-bind="visible: isLoading">
+		<div class="spinner" my-head-is-spinning>
 			<div class="b red" ><div></div></div>
 			<div class="b blue" ><div></div></div>
 			<div class="b yellow" ><div></div></div>
@@ -26,9 +26,9 @@
 				<input id="tagInputBox" type="text" ng-model="textValue" name="text" />
 			</form>
 		</div>
-		<div id="tagList">
-			<div ng-repeat="widget in tagWidgets"
-				ng-class="{tagWidget: true, tagWidgetArmed: activeTag()===widget.name, tagFilterOn: tagFilters.indexOf(widget.name)>=0}"
+		<ul id="tagList">
+			<li ng-repeat="widget in tagWidgets"
+			    ng-class="{tagWidget: true, tagWidgetArmed: activeTag()===widget.name, tagFilterOn: tagFilters.indexOf(widget.name)>=0}"
 				draggable-widget bindonce>
 				<div class="tagName" bo-text="widget.name"></div>
 				<div class="deactivateTag" ng-click="removeTagWidget(widget)">
@@ -44,8 +44,8 @@
 					ng-click="assignShortcut(widget.name, $event)"
 					ng-bind='shortcuts.indexOf(widget.name)>=0 ? shortcuts.indexOf(widget.name)+1 : "&nbsp;" '>
 				</div>
-			</div>
-		</div>
+			</li>
+		</ul>
 	</div>
 	<div id="container" ng-controller="GalleryController" autoload-content-on-scroll>
 		<div id="autopageContent" bindonce selection-interactions>
@@ -76,6 +76,7 @@
 	<script src="/js/jquery.ba-throttle-debounce.min.js"></script>
 	<script src="/js/jquery.scrollTo.js"></script>
 	<script src="/js/heatmap.js"></script>
+	<script src="/js/color-thief.js"></script>
 	<script src="/js/firebase.js"></script>
 	<script src="/js/intersection.js"></script>
 	<script src="/js/md5.js"></script>

@@ -36,13 +36,15 @@ img {
 
 #taggingArea {
 	position: absolute;
+	bottom: 10px;
+	left: -20px;
 	z-index: 100;
 }
 
 #tagInputBoxHolder {
 	display: none;
-	position: absolute;
-	top: -8px;
+	position: fixed;
+	top: 0;
 	left: 132px;
 	width: 251px;
 	height: 59px;
@@ -63,9 +65,9 @@ img {
 }
 
 #tagList {
-	width: 0;
-	height: 0;
-	margin-top: 90px;
+	position: absolute;
+	left: 0;
+	bottom: 20px;
 }
 
 .tagWidget {

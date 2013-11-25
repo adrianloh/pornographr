@@ -36,14 +36,6 @@ function regulateFunc(frequency, funcToRegulate) {
 	return regulatedFunc;
 }
 
-var HeaderControls = (function() {
-	var self = {};
-	self.isLoading = ko.observable(false);
-	return self;
-})();
-
-ko.applyBindings(HeaderControls, document.getElementById("headerControls"));
-
 // --------------------- MAIN ------------------------- //
 
 var firebase = new Firebase('https://oogly.firebaseio-demo.com/');
@@ -57,7 +49,7 @@ Pornographr.config(function ($anchorScrollProvider, $locationProvider) {
 	$anchorScrollProvider.disableAutoScrolling();
 });
 
-Pornographr.directive('activeTagTooltip', function ($timeout, flickrFactory) {
+Pornographr.directive('activeTagTooltip', function () {
 	return {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
@@ -71,6 +63,20 @@ Pornographr.directive('activeTagTooltip', function ($timeout, flickrFactory) {
 	};
 });
 
+Pornographr.directive('myHeadIsSpinning', function ($timeout, flickrFactory) {
+	return {
+		restrict: 'A',
+		link: function(scope, element, attrs) {
+			var mode = {true: 'show', false: 'hide', null: 'hide'};
+			scope.$watch(function() {
+				return flickrFactory.isBusyLoading;
+			}, function(newVal, oldVal) {
+				$(element)[mode[newVal]]();
+			});
+		}
+	};
+});
+
 Pornographr.directive('onFinishImageRender', function ($timeout, flickrFactory) {
 	return {
 		restrict: 'A',
@@ -79,6 +85,7 @@ Pornographr.directive('onFinishImageRender', function ($timeout, flickrFactory) 
 				var photoId = element.attr("id");
 				if (photoId===flickrFactory.photoidOfLastImage) {
 					$timeout(function () {
+						flickrFactory.isBusyLoading = false;
 						scope.$emit('lastImageRendered');
 					});
 				}
@@ -384,7 +391,7 @@ Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, 
 				// The moment we stop scrolling...
 				$("."+selectableClassName).removeClass(selectableClassName);
 				// Get all visible rows in the viewport
-				var rowsInView = $("ul").filter(function(i,el) {
+				var rowsInView = $("ul.photoRow").filter(function(i,el) {
 					return isInsideViewport($(el).offset().top);
 				});
 				// Save the first visible row in localStorage so we can recall
@@ -409,12 +416,12 @@ Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, 
 				if (pos>last_position) {
 					// User is scrolling down
 					if (pos>=0.95) {
-						flickrFactory.fetchMoreImages(scope, 1);
+						flickrFactory.fetchMoreImages(1);
 					}
 				} else {
 					// User is scrolling up
 					if (pos1===1) {
-						flickrFactory.fetchMoreImages(scope, -1);
+						flickrFactory.fetchMoreImages(-1);
 					}
 				}
 				last_position = pos;
@@ -428,7 +435,17 @@ Pornographr.directive('draggableWidget', function () {
 	return {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
-			$(element).draggable();
+			var el = $(element);
+			if (scope.isDoneReloadingTags) {
+				el.attr("style","position:fixed; top:200px; left:20px");
+			}
+			el.draggable({
+				start: function(event, ui) {
+					ui.helper.removeClass("widgetIsDocked");
+				}
+			}).dblclick(function(event) {
+				el.attr("style","");
+			});
 		}
 	}
 });
@@ -568,11 +585,15 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, $timeou
 
 	Peekaboo.taggingController = $scope;
 
-	$scope.isLoading = HeaderControls.isLoading;
 	$scope.existingWidgets = {};
 	$scope.tagWidgets = [];
 	$scope.shortcuts = tagService.shortcuts;
 	$scope.tagFilters = tagService.tagFilters;
+
+	// The draggableWidget directive uses this to determine whether to "break" the widget out
+	// of $("#tagList") when its created so its near the user. This is set to false right after
+	// first load when recalling old widgets that have been saved.
+	$scope.isDoneReloadingTags = false;
 
 	function persist() {
 		var saveData = {};
@@ -765,6 +786,9 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, $timeou
 					$scope.createWidgetWithTag(tagName);
 				}
 			});
+			setTimeout(function() {
+				$scope.isDoneReloadingTags = true;
+			}, 5000);
 		}, 2500);
 	}
 
@@ -776,7 +800,6 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 	Peekaboo.galleryController = $scope;
 
 	$scope.photoRows = flickrFactory.photoRows;
-	$scope.isLoading = HeaderControls.isLoading;   // Is a BOOLEAN ko.observable
 	$scope.isAutoScroll = false;
 	$scope.tagFilters = tagService.tagFilters;
 	$scope.activeImageId = null;
@@ -798,13 +821,18 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 			if (photoId.length>0 && photoId!=='null') {
 				selector = "#"+photoId;
 			} else if (photoId==='null' && localStorage.hasOwnProperty('firstVisibleRow')) {
-				// If there is a null in the hash, this *always* automatically returns you to
-				// the last position you you were viewing when you reload the site, which
-				// means, to jump to a specific page, you must give it a url *without* a hash
-				page = parseInt(localStorage.firstVisibleRow.split("_")[1]);
-				selector = "#"+localStorage.firstVisibleRow;
-				$location.replace();
-				$location.path(pathPrefix + page);
+				// Warning: If there is '#null' in the hash, this will *always* return you to
+				// the last location you were viewing when you left the site *irregardless*
+				// of which page you're requesting at load. Which means, to jump to a specific page,
+				// you must give it a url *without* a hash
+				if (localStorage.firstVisibleRow.match(/page_\d+_\d+/)) {
+					// A photoRow's id looks like 'page_1_10986781043' where the last number
+					// is the photoId of the first image in that row
+					page = parseInt(localStorage.firstVisibleRow.split("_")[1]);
+					selector = "#"+localStorage.firstVisibleRow;
+					$location.replace();
+					$location.path(pathPrefix + page);
+				}
 			}
 			if (selector!==null) {
 				scrollToLastSavedPositionAfterLoad = function() {
@@ -827,16 +855,16 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 			}
 			if (isStream) {
 				$rootScope.mainTitle = "Photostream | Page " + page;
-				flickrFactory.initOnPage($scope, page);
+				flickrFactory.initOnPage(page);
 			} else {
 				$rootScope.mainTitle = "Search for " + search_term + " | Page " + page;
-				flickrFactory.initSearch($scope, search_term, page);
+				flickrFactory.initSearch(search_term, page);
 			}
 		} else {
 			$location.replace();
 			$location.path("/stream/1");
 			$rootScope.mainTitle = "Photostream | Page " + 1;
-			flickrFactory.initOnPage($scope, 1);
+			flickrFactory.initOnPage(1);
 		}
 	}
 
@@ -849,7 +877,6 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 
 	var firstLoad = true;
 	$scope.$on('lastImageRendered', function(renderFinishedEvent) {
-		$scope.isLoading(false);
 		$rootScope.$broadcast("refreshFilters");
 		if (typeof(scrollToLastSavedPositionAfterLoad)==='function') {
 			scrollToLastSavedPositionAfterLoad();
@@ -865,7 +892,7 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 		pathPrefix = "/search/" + search_term + "/";
 		$location.path(pathPrefix + page);
 		$rootScope.mainTitle = "Search for " + search_term + " | Page " + page;
-		flickrFactory.initSearch($scope, search_term, page);
+		flickrFactory.initSearch(search_term, page);
 	});
 
 	function expandPhoto(photo) {
