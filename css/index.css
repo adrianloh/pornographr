@@ -258,12 +258,12 @@ img.ui-selected {
 	font-family: "Orienta";
 	width: 86px;
 	height: 17px;
-	background-color: rgba(32, 29, 29, 0.88);
+	background-color: rgb(238, 2, 2);
 	z-index: 10;
 	align-content: center;
 	border-radius: 7px;
 	color: white;
-	border: 1px solid #535353;
+	border: 2px solid #fefefe;
 	display: none;
 	box-shadow: 4px 6px 8px rgba(0, 0, 0, 0.6);
 }
@@ -283,6 +283,8 @@ img.ui-selected {
 	padding: 20px;
 	border: 2px solid black;
 	display: none;
+	transform:rotate(3deg);
+	-webkit-transform:rotate(3deg);
 }
 
 #authorizeText {

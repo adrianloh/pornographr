@@ -243,6 +243,7 @@ Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrF
 				}
 			}).on("keyup", function(e) {
 				var keyCode = e.keyCode;
+				editingShorcutForTag = null;
 				if (has_key(boundKeyCodes, keyCode)) {
 					if (numbers_over_zero.hasOwnProperty(keyCode)) {
 						if (Date.now()-keyDownTime>500) {
@@ -251,7 +252,7 @@ Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrF
 								toggleWidget(lastKeyPlease);
 							}
 						} else {
-							// We are swicthing tags
+							// We are switching tags
 							if (tagService.tagFilters.length===0) {
 								lastKeyPlease = null
 							} else {
@@ -307,9 +308,11 @@ Pornographr.directive('selectionInteractions', function ($rootScope, tagService,
 								tagService.filteredByActiveTag()) {
 								// ... and the armed tag is also the active filter and
 								// the user is not holding down SHIFT, then untag the image...
-								flickrFactory.untagImage(photoId, tag).then(function(resObject) {
-									deselect(self);
-									$rootScope.$broadcast("refreshFilters");
+								flickrFactory.untagImage(photoId, tag, function(error) {
+									if (!error) {
+										deselect(self);
+										$rootScope.$broadcast("refreshFilters");
+									}
 								});
 							} else {
 								// Not in filter mode, just give some kind of indication
@@ -324,7 +327,7 @@ Pornographr.directive('selectionInteractions', function ($rootScope, tagService,
 							// This image is not tagged
 							flickrFactory.tagImage(photoId, tag).then(function(resObject) {
 								var res = resObject.data;
-								if (res.stat==='ok') {
+								if (res.stat==='ok' && res.tags.tag.length>0) {
 									imageHolder.addClass("imageHolderOK");
 									setTimeout(function() {
 										imageHolder.removeClass("imageHolderOK");
@@ -332,7 +335,6 @@ Pornographr.directive('selectionInteractions', function ($rootScope, tagService,
 									}, 250);
 									if (tagService.filteredByActiveTag()) {
 										$rootScope.$broadcast("refreshFilters");
-//										flickrFactory.db[photoId].ui.dimwit = true;
 									}
 								}
 							});
@@ -372,10 +374,7 @@ Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, 
 		link: function(scope, element, attrs) {
 			var last_position = 0,
 				scrollingContainer = $(element),
-				autopageContent = $("#autopageContent"),
-				applyChanges = $timeout(function() {
-					scope.$apply();
-				});
+				autopageContent = $("#autopageContent");
 
 			var WINDOW_HEIGHT = $(window).height(),
 				selectableClassName = "imageInView";
@@ -397,8 +396,8 @@ Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, 
 				rowsInView.find("img").addClass(selectableClassName);
 				$rootScope.$broadcast("viewIsRefreshed");
 
-				// Save the first visible row in localStorage so we can recall
-				var lastSeenIds = rowsInView.slice(0,3).map(function(i,o) {
+				// Save our position
+				var lastSeenIds = rowsInView.slice(2,5).map(function(i,o) {
 					var rowId = o.getAttribute("id");
 					return flickrFactory.photoIdsInRow[rowId];
 				}).toArray().filter(function(o) {
@@ -410,12 +409,12 @@ Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, 
 					localStorage.lastPagePosition = photoObject.ui.loadedFromPage;
 					localStorage.lastSeenIds = lastSeenIds;
 				} else {
+					delete localStorage.lastPagePosition;
 					delete localStorage.lastSeenIds;
 				}
 			}));
 
 			scrollingContainer.scroll(function () {
-				$timeout.cancel(applyChanges);
 				if (!($location.hash()==="null") && !containerService.isAutoScroll) {
 					scope.$apply(function() {
 						$location.hash('null');
@@ -449,12 +448,11 @@ Pornographr.directive('draggableWidget', function () {
 			if (scope.isDoneReloadingTags) {
 				el.attr("style","position:fixed; top:200px; left:20px");
 			}
-			el.draggable({
-				start: function(event, ui) {
-					ui.helper.removeClass("widgetIsDocked");
-				}
-			}).dblclick(function(event) {
-				el.attr("style","");
+			el.draggable();
+			el.dblclick(function(event) {
+				// When a widget is double-clicked, remove all inline styles
+				// from the element so it snaps back into the parent <ul> order
+				el.attr("style","position: relative");
 			});
 		}
 	}
@@ -464,7 +462,6 @@ Pornographr.directive('inputBoxOps', function ($rootScope) {
 	return {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
-			scope.fuck = {};
 			$(element).on("submit", function(e) {
 				var textInput = scope.fuck.textValue;
 				if (textInput.match(/:/)) {
@@ -474,10 +471,14 @@ Pornographr.directive('inputBoxOps', function ($rootScope) {
 					if (key.match(/tag/)) {
 						scope.createWidgetWithTag(value);
 						scope.$apply(function() {
+							// After we've grabbed the tagname, reset the box
+							// to make it easier to enter the next one
 							scope.textValue = "tag: ";
 						});
 					}
 				} else {
+					// This must be executed from GalleryController
+					// or the ui won't update
 					$rootScope.$broadcast("initSearch", textInput);
 				}
 			});
@@ -882,6 +883,21 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 		afterFirstRenderCallback = null,
 		m = $location.path().match(/\/(stream|search).+\d+/);
 
+	function setPageTitle(data) {
+		var title = [];
+		if (data.hasOwnProperty('keyword')) {
+			title += "Search for " + data.keyword + " | ";
+		} else {
+			title += "Photostream | "
+		}
+		if (data.hasOwnProperty('photoId')) {
+			title += "Image " + data.photoId;
+		} else if (data.hasOwnProperty('page')) {
+			title += "Page " + data.page;
+		}
+		$rootScope.mainTitle = title;
+	}
+
 	function init() {
 		// From the location url, figure out our last position, whether we are restoring:
 		// 1) A specific photo that was last expanded
@@ -892,8 +908,7 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 				page = parseInt(args.slice(-1),10),
 				isStream = args[1]==='stream',
 				search_term = isStream ? null : args[2],
-				photoId = $location.hash(),
-				selector = null;
+				photoId = $location.hash();
 			pathPrefix = $location.path().replace(/\d+$/,"");
 			if (photoId.length>0 && photoId!=='null') {
 				// We are restoring a photo
@@ -915,7 +930,7 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 				// the last location you were viewing when you left the site *irregardless*
 				// of which page you're requesting at load. Which means, to jump to a specific page,
 				// you must give it a url *without* a hash
-				page = parseInt(localStorage.lastPagePosition,10);
+				page = parseInt(localStorage.lastPagePosition, 10);
 				$location.replace();
 				$location.path(pathPrefix + page);
 				afterFirstRenderCallback = function() {
@@ -924,27 +939,27 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 				};
 			}
 			if (isStream) {
-				$rootScope.mainTitle = "Photostream | Page " + page;
+				setPageTitle({page:page});
 				flickrFactory.initOnPage(page);
 			} else {
-				$rootScope.mainTitle = "Search for " + search_term + " | Page " + page;
+				setPageTitle({keyword: search_term, page:page});
 				flickrFactory.initSearch(search_term, page);
 			}
 		} else {
 			$location.replace();
 			$location.path("/stream/1");
-			$rootScope.mainTitle = "Photostream | Page " + 1;
+			setPageTitle({page:1});
 			flickrFactory.initOnPage(1);
 		}
 	}
 
-	var checkReady = setInterval(function(){
+	var checkReady = setInterval(function() {
 		if (flickrAuth.userid!==null) {
 			// TODO: How to move these two DOM references away into a directive?
 			clearInterval(checkReady);
 			$("#authorizeScreen").hide();
 			container.show();
-			flickrFactory.screen_width = $("#autopageContent").width()*0.88;
+			flickrFactory.screen_width = $("#autopageContent").width()*0.8;
 			init();
 		}
 	}, 1000);
@@ -965,7 +980,7 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 		var page = 1;
 		pathPrefix = "/search/" + search_term + "/";
 		$location.path(pathPrefix + page);
-		$rootScope.mainTitle = "Search for " + search_term + " | Page " + page;
+		setPageTitle({keyword: search_term, page:page});
 		flickrFactory.initSearch(search_term, page);
 	});
 
@@ -987,7 +1002,6 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 
 	$scope.openOriginalLink = function(event, originalImageLink) {
 		window.open(originalImageLink);
-		keyboardService.altKeyDown = false; // BUG?!!
 	};
 
 	$scope.onImageDblClick = function(photo, photoIndex, photoRowId) {
@@ -1002,9 +1016,9 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 			if (currentHash!==photo.id) {
 				if (pathPrefix.match(/search/)) {
 					var search_term = pathPrefix.split("/").slice(-2)[0];
-					$rootScope.mainTitle = "Search for " + search_term + " | Image " + photo.id;
+					setPageTitle({keyword: search_term, photoId:photo.id});
 				} else {
-					$rootScope.mainTitle = "Photostream | Image " + photo.id;
+					setPageTitle({photoId:photo.id});
 				}
 				$location.path(pathPrefix + pageNumber);
 				$location.hash(photo.id);
@@ -1063,19 +1077,17 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 	// In the so-called "Angular world", where is this *supposed* to go?
 	window.addEventListener("popstate", function(e) {
 		var hash = $location.hash(),
-			path = $location.path();
-		if (hash.length>0 && hash!=='null' && $("#"+hash).length!==0) {
-			var photo = flickrFactory.db[hash];
-			if (photo) {
-				$scope.$apply(function() {
-					expandPhoto(photo);
-				});
-				containerService.isAutoScroll = true;
-				$anchorScroll();
-				setTimeout(function() {
-					containerService.isAutoScroll = false;
-				}, 1500);
-			}
+			path = $location.path(),
+			photoIdSelector = "#"+hash; // Careful, this could be the string '#undefined'
+		if (hash.length>0 && hash!=='null' && $(photoIdSelector).length!==0) {
+			containerService.scrollTo(photoIdSelector, function(err) {
+				var photo = flickrFactory.db[hash];
+				if (photo) {
+					$scope.$apply(function() {
+						expandPhoto(photo);
+					});
+				}
+			});
 		}
 	});
 

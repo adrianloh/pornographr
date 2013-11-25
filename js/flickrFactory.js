@@ -16,7 +16,7 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 	var currentPage = 0;
 
 	var whichRowIdAmI = {}, // Maps a photoId ==> rowId
-		idsInRow = {};      // Maps rowId ==> [list_of_photoIds_in_order_of_insertion]
+		idsInRow = {};          // Maps rowId ==> [list_of_photoIds_in_order_of_insertion]
 
 	factory.photoIdsInRow = idsInRow;
 	factory.whichRowIdAmI = whichRowIdAmI;
@@ -234,8 +234,8 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 		});
 	};
 
-	factory.untagImage = function(photoId, tag) {
-		var imageTags = factory.db[photoId].tags;
+	factory.untagImage = function(photoId, tag, callback) {
+		var imageTags = factory.db[photoId].tags, msg;
 		imageTags.splice(imageTags.indexOf(tag),1);
 		delete factory.tags[tag][photoId];
 		var data2 = {
@@ -247,7 +247,7 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 			photo_id: photoId
 		};
 		data2.api_sig = flickrAuth.sign(data2);
-		return $http({method: 'GET', url:path, params:data2}).success(function(res, status, headers, config) {
+		$http({method: 'GET', url:path, params:data2}).success(function(res, status, headers, config) {
 			if (res.stat==='ok') {
 				var tagId = null;
 				try {
@@ -260,13 +260,17 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 					delete data2.api_sig;
 					data2.api_sig = flickrAuth.sign(data2);
 					$http({method: 'POST', url:path, params:data2}).success(function(res, status, headers, config) {
-						if (res.stat!=='ok') {
-							console.error("Could not remove tag" +  tag + " for photo " + photoId);
+						if (res.stat==='ok') {
+							callback();
+						} else {
+							msg = "Could not remove tag " +  tag + " for photo " + photoId;
+							callback({error: msg});
+							console.error(msg);
 						}
 					});
 				} else {
-					console.error("Could not getInfo for photo " + photoId);
-					console.error(res);
+					msg = "Could not getInfo for photo " + photoId;
+					callback({error:msg});
 				}
 			}
 		});
