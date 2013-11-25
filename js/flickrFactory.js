@@ -150,7 +150,8 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 						ui: {
 							xpanded: false,
 							deleted: false,
-							dimwit: false
+							dimwit: false,
+							loadedFromPage: currentPage
 						}
 					};
 					if (Set.intersection2(doNotRender, p.tags).length===0 && factory.db[p.id]===undefined) {
@@ -175,11 +176,14 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 
 	function renderImages(injectPhotos, currentP, direction) {
 		var activeRow,
-			currentWidth = factory.screen_width+1000,
 			method = direction >= 0 ? 'push' : 'unshift';
 		if (method==='unshift') {
 			injectPhotos.reverse();
+			activeRow = factory.photoRows[0];
+		} else {
+			activeRow = factory.photoRows[factory.photoRows.length-1];
 		}
+		var currentWidth = factory.photoRows.length===0 ? 10000 : activeRow.images.map(function(p) { return p.size_thumb.w }).reduce(function(prev,curr) { return prev+curr });
 		injectPhotos.forEach(function(photo, i) {
 			currentWidth+=(photo.size_thumb.w+6);
 			if (currentWidth>factory.screen_width) {

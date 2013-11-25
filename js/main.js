@@ -398,15 +398,19 @@ Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, 
 				$rootScope.$broadcast("viewIsRefreshed");
 
 				// Save the first visible row in localStorage so we can recall
-				// it later when we reload the site
-				if (rowsInView.length>3) {
-					localStorage.firstVisibleRow = rowsInView[0].getAttribute("id");
-					var lastSeenIds = rowsInView.slice(0,3).map(function(i,o) {
-						return flickrFactory.photoIdsInRow[o.getAttribute("id")];
-					}).toArray();
-					if (lastSeenIds.indexOf(undefined)<0) {
-						localStorage.lastSeenIds = lastSeenIds;
-					}
+				var lastSeenIds = rowsInView.slice(0,3).map(function(i,o) {
+					var rowId = o.getAttribute("id");
+					return flickrFactory.photoIdsInRow[rowId];
+				}).toArray().filter(function(o) {
+					return o!==undefined;
+				});
+				if (lastSeenIds.length>0) {
+					var firstPhotoId = lastSeenIds[0],
+						photoObject = flickrFactory.db[firstPhotoId];
+					localStorage.lastPagePosition = photoObject.ui.loadedFromPage;
+					localStorage.lastSeenIds = lastSeenIds;
+				} else {
+					delete localStorage.lastSeenIds;
 				}
 			}));
 
@@ -894,10 +898,9 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 			pathPrefix = $location.path().replace(/\d+$/,"");
 			if (photoId.length>0 && photoId!=='null') {
 				// We are restoring a photo
-				selector = "#"+photoId;
 				afterFirstRenderCallback = function() {
 					afterFirstRenderCallback = null;
-					containerService.scrollTo(selector, function(error) {
+					containerService.scrollTo("#"+photoId, function(error) {
 						if (error) return;
 						var photo = flickrFactory.db[photoId];
 						if (photo) {
@@ -916,8 +919,7 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 				if (localStorage.firstVisibleRow.match(/page_\d+_\d+/)) {
 					// A photoRow's id looks like 'page_1_10986781043' where the last number
 					// is the photoId of the first image in that row
-					page = parseInt(localStorage.firstVisibleRow.split("_")[1]);
-					selector = "#"+localStorage.firstVisibleRow;
+					page = parseInt(localStorage.lastPagePosition,10);
 					$location.replace();
 					$location.path(pathPrefix + page);
 					afterFirstRenderCallback = function() {
@@ -943,6 +945,7 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 
 	var checkReady = setInterval(function(){
 		if (flickrAuth.userid!==null) {
+			// TODO: How to move these two DOM references away into a directive?
 			clearInterval(checkReady);
 			$("#authorizeScreen").hide();
 			container.show();
@@ -1057,6 +1060,7 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 		$scope.activeImageId = nextPhotoId;
 		$scope.$apply(function() {
 			expandPhoto(flickrFactory.db[nextPhotoId]);
+			// TODO: Move this into containerService
 			container.scrollTo($("#"+nextPhotoId)[0], {offset:{top:-200, left:0}} );
 		});
 	}
