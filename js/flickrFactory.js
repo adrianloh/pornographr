@@ -15,13 +15,11 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 
 	var currentPage = 0;
 
-	/* For the benefit of fast lookups to get coordinate
-	points for generating heatmap. Date is populated by #renderImages
-	and used by factory.getCoordinatesOfPhotoId */
 	var whichRowIdAmI = {}, // Maps a photoId ==> rowId
 		idsInRow = {};      // Maps rowId ==> [list_of_photoIds_in_order_of_insertion]
 
-	factory.idsInRow = idsInRow;
+	factory.photoIdsInRow = idsInRow;
+	factory.whichRowIdAmI = whichRowIdAmI;
 
 	factory.getCoordinatesOfPhotoId = function(photoId) {
 		var rowId = whichRowIdAmI[photoId],

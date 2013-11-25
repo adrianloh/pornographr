@@ -366,7 +366,7 @@ Pornographr.directive('selectionInteractions', function ($rootScope, tagService,
 	}
 });
 
-Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, flickrFactory, $rootScope) {
+Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, flickrFactory, containerService, $rootScope) {
 	return {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
@@ -382,26 +382,6 @@ Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, 
 
 			function isInsideViewport(top) {
 				return -10<top==top<WINDOW_HEIGHT;
-			}
-
-			$rootScope.$on("containerScrollTo", function(event, data) {
-				scrollTo(data.elementId, data.afterScroll);
-			});
-
-			function scrollTo(elementId, afterScrollCallback) {
-				var el = $(elementId);
-				if (el.length>0) {
-					scope.isAutoScroll = true;
-					scrollingContainer.scrollTo(el, 500, {offset:{top:-150, left:0}});
-					if (afterScrollCallback!==undefined) afterScrollCallback();
-					setTimeout(function() {
-						scope.isAutoScroll = false;
-					}, 1500);
-				} else {
-					var msg = "Could not find #" + elementId + " to scroll to";
-					console.error(msg);
-					if (afterScrollCallback!==undefined) afterScrollCallback({error:msg});
-				}
 			}
 
 			// Note, $.debounce regulates the frequency the callback function is invoked
@@ -422,7 +402,7 @@ Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, 
 				if (rowsInView.length>3) {
 					localStorage.firstVisibleRow = rowsInView[0].getAttribute("id");
 					var lastSeenIds = rowsInView.slice(0,3).map(function(i,o) {
-						return flickrFactory.idsInRow[o.getAttribute("id")];
+						return flickrFactory.photoIdsInRow[o.getAttribute("id")];
 					}).toArray();
 					if (lastSeenIds.indexOf(undefined)<0) {
 						localStorage.lastSeenIds = lastSeenIds;
@@ -432,7 +412,7 @@ Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, 
 
 			scrollingContainer.scroll(function () {
 				$timeout.cancel(applyChanges);
-				if (!($location.hash()==="null") && !scope.isAutoScroll) {
+				if (!($location.hash()==="null") && !containerService.isAutoScroll) {
 					scope.$apply(function() {
 						$location.hash('null');
 					});
@@ -499,6 +479,75 @@ Pornographr.directive('inputBoxOps', function ($rootScope) {
 			});
 		}
 	}
+});
+
+Pornographr.factory('containerService', function(flickrFactory) {
+
+	var factory = {};
+	factory.isAutoScroll = false;
+	factory.container = $("#container");
+
+	factory.scrollTo = function(elementId, afterScrollCallback) {
+		var el = $(elementId);
+		if (el.length>0) {
+			factory.isAutoScroll = true;
+			factory.container.scrollTo(el, 500, {offset:{top:-150, left:0}});
+			if (afterScrollCallback!==undefined) afterScrollCallback();
+			setTimeout(function() {
+				factory.isAutoScroll = false;
+			}, 1500);
+		} else {
+			var msg = 'Could not find $("' + elementId + '") to scroll to';
+			console.error(msg);
+			if (afterScrollCallback!==undefined) afterScrollCallback({error:msg});
+		}
+	};
+
+	factory.restoreLastPosition = function(callback) {
+		var lastSeenRowId = findLastPosition();
+		if (lastSeenRowId!==null) {
+			console.log(">> Scroll to: " + lastSeenRowId);
+			if (typeof(callback)==='function') {
+				factory.scrollTo("#"+lastSeenRowId, callback);
+			} else {
+				factory.scrollTo("#"+lastSeenRowId);
+			}
+		} else {
+			console.warn("findLastPosition: Failed to find last restore position");
+		}
+	};
+
+	function findLastPosition() {
+		var moveToRowId = null, totals = {}, rowId;
+		if (localStorage.hasOwnProperty('lastSeenIds')) {
+			localStorage.lastSeenIds.split(",").forEach(function(photoId) {
+				var rowId = flickrFactory.whichRowIdAmI[photoId];
+				if (rowId!==undefined) {
+					if (!totals.hasOwnProperty(rowId)) {
+						totals[rowId] = 0;
+					}
+					totals[rowId]+=1;
+				}
+			});
+			if (!$.isEmptyObject(totals)) {
+				var currentHighScore = 0,
+					currentWinner = null;
+				for (rowId in totals) {
+					if (totals[rowId]>currentHighScore) {
+						currentHighScore = totals[rowId];
+						currentWinner = rowId;
+					}
+				}
+				if (currentHighScore>0) {
+					moveToRowId = currentWinner;
+				}
+			}
+		}
+		return moveToRowId;
+	}
+
+	return factory;
+
 });
 
 Pornographr.factory("keyboardService", function() {
@@ -819,19 +868,22 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, $timeou
 
 });
 
-Pornographr.controller("GalleryController", function($rootScope, $scope, $location, $anchorScroll, $timeout, flickrAuth, flickrFactory, keyboardService, heatFactory, tagService) {
+Pornographr.controller("GalleryController", function($rootScope, $scope, $location, $anchorScroll, $timeout, flickrAuth, flickrFactory, containerService, keyboardService, heatFactory, tagService) {
 
 	$scope.photoRows = flickrFactory.photoRows;
-	$scope.isAutoScroll = false;
 	$scope.tagFilters = tagService.tagFilters;
 	$scope.activeImageId = null;
 
 	var pathPrefix = "/stream/",
-		container = $("#container"),
-		scrollToLastSavedPositionAfterLoad = null,
+		container = containerService.container,
+		afterFirstRenderCallback = null,
 		m = $location.path().match(/\/(stream|search).+\d+/);
 
 	function init() {
+		// From the location url, figure out our last position, whether we are restoring:
+		// 1) A specific photo that was last expanded
+		// 2) We were just scrolling around (restore the last seen row)
+		// 3) Restoring a previous search
 		if (m) {
 			var args = $location.path().split("/"),
 				page = parseInt(args.slice(-1),10),
@@ -841,8 +893,22 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 				selector = null;
 			pathPrefix = $location.path().replace(/\d+$/,"");
 			if (photoId.length>0 && photoId!=='null') {
+				// We are restoring a photo
 				selector = "#"+photoId;
+				afterFirstRenderCallback = function() {
+					afterFirstRenderCallback = null;
+					containerService.scrollTo(selector, function(error) {
+						if (error) return;
+						var photo = flickrFactory.db[photoId];
+						if (photo) {
+							$scope.$apply(function() {
+								expandPhoto(photo);
+							});
+						}
+					});
+				};
 			} else if (photoId==='null' && localStorage.hasOwnProperty('firstVisibleRow')) {
+				// We are restoring a "general area" the user was last looking at
 				// Warning: If there is '#null' in the hash, this will *always* return you to
 				// the last location you were viewing when you left the site *irregardless*
 				// of which page you're requesting at load. Which means, to jump to a specific page,
@@ -854,24 +920,11 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 					selector = "#"+localStorage.firstVisibleRow;
 					$location.replace();
 					$location.path(pathPrefix + page);
+					afterFirstRenderCallback = function() {
+						afterFirstRenderCallback = null;
+						containerService.restoreLastPosition();
+					};
 				}
-			}
-			if (selector!==null) {
-				scrollToLastSavedPositionAfterLoad = function() {
-					scrollToLastSavedPositionAfterLoad = null;
-					$rootScope.$broadcast("containerScrollTo", {
-						elementId: selector,
-						afterScroll: function(error) {
-							if (error) return;
-							var photo = flickrFactory.db[photoId];
-							if (photo) {
-								$scope.$apply(function() {
-									expandPhoto(photo);
-								});
-							}
-						}
-					});
-				};
 			}
 			if (isStream) {
 				$rootScope.mainTitle = "Photostream | Page " + page;
@@ -901,8 +954,8 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 	var firstLoad = true;
 	$scope.$on('lastImageRendered', function(renderFinishedEvent) {
 		$rootScope.$broadcast("refreshFilters");
-		if (typeof(scrollToLastSavedPositionAfterLoad)==='function') {
-			scrollToLastSavedPositionAfterLoad();
+		if (typeof(afterFirstRenderCallback)==='function') {
+			afterFirstRenderCallback();
 		}
 		if (firstLoad) {
 			container.trigger("scroll"); // To trigger the ability to select
@@ -1018,10 +1071,10 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 				$scope.$apply(function() {
 					expandPhoto(photo);
 				});
-				$scope.isAutoScroll = true;
+				containerService.isAutoScroll = true;
 				$anchorScroll();
 				setTimeout(function() {
-					$scope.isAutoScroll = false;
+					containerService.isAutoScroll = false;
 				}, 1500);
 			}
 		}
