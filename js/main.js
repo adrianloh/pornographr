@@ -384,6 +384,26 @@ Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, 
 				return -10<top==top<WINDOW_HEIGHT;
 			}
 
+			$rootScope.$on("containerScrollTo", function(event, data) {
+				scrollTo(data.elementId, data.afterScroll);
+			});
+
+			function scrollTo(elementId, afterScrollCallback) {
+				var el = $(elementId);
+				if (el.length>0) {
+					scope.isAutoScroll = true;
+					scrollingContainer.scrollTo(el, 500, {offset:{top:-150, left:0}});
+					if (afterScrollCallback!==undefined) afterScrollCallback();
+					setTimeout(function() {
+						scope.isAutoScroll = false;
+					}, 1500);
+				} else {
+					var msg = "Could not find #" + elementId + " to scroll to";
+					console.error(msg);
+					if (afterScrollCallback!==undefined) afterScrollCallback({error:msg});
+				}
+			}
+
 			// Note, $.debounce regulates the frequency the callback function is invoked
 			scrollingContainer.scroll($.debounce(750, function() {
 				// The moment we stop scrolling...
@@ -392,14 +412,22 @@ Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, 
 				var rowsInView = $("ul.photoRow").filter(function(i,el) {
 					return isInsideViewport($(el).offset().top);
 				});
-				// Save the first visible row in localStorage so we can recall
-				// it later when we reload the site
-				if (rowsInView.length>0) {
-					localStorage.firstVisibleRow = rowsInView[0].getAttribute("id");
-				}
+
 				// Tag all images in the visible rows as selectable
 				rowsInView.find("img").addClass(selectableClassName);
 				$rootScope.$broadcast("viewIsRefreshed");
+
+				// Save the first visible row in localStorage so we can recall
+				// it later when we reload the site
+				if (rowsInView.length>3) {
+					localStorage.firstVisibleRow = rowsInView[0].getAttribute("id");
+					var lastSeenIds = rowsInView.slice(0,3).map(function(i,o) {
+						return flickrFactory.idsInRow[o.getAttribute("id")];
+					}).toArray();
+					if (lastSeenIds.indexOf(undefined)<0) {
+						localStorage.lastSeenIds = lastSeenIds;
+					}
+				}
 			}));
 
 			scrollingContainer.scroll(function () {
@@ -831,20 +859,18 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 			if (selector!==null) {
 				scrollToLastSavedPositionAfterLoad = function() {
 					scrollToLastSavedPositionAfterLoad = null;
-					var el = $(selector);
-					if (el.length>0) {
-						$scope.isAutoScroll = true;
-						container.scrollTo(el, 500, {offset:{top:-150, left:0}});
-						var photo = flickrFactory.db[photoId];
-						if (photo) {
-							$scope.$apply(function() {
-								expandPhoto(photo);
-							});
+					$rootScope.$broadcast("containerScrollTo", {
+						elementId: selector,
+						afterScroll: function(error) {
+							if (error) return;
+							var photo = flickrFactory.db[photoId];
+							if (photo) {
+								$scope.$apply(function() {
+									expandPhoto(photo);
+								});
+							}
 						}
-						setTimeout(function() {
-							$scope.isAutoScroll = false;
-						}, 1500);
-					}
+					});
 				};
 			}
 			if (isStream) {

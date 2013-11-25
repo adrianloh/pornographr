@@ -21,6 +21,8 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 	var whichRowIdAmI = {}, // Maps a photoId ==> rowId
 		idsInRow = {};      // Maps rowId ==> [list_of_photoIds_in_order_of_insertion]
 
+	factory.idsInRow = idsInRow;
+
 	factory.getCoordinatesOfPhotoId = function(photoId) {
 		var rowId = whichRowIdAmI[photoId],
 			index = idsInRow[rowId].indexOf(photoId);
