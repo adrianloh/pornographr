@@ -156,6 +156,7 @@ img {
 	height: 100%;
 	overflow-y: auto;
 	overflow-x: hidden;
+	display: none;
 }
 
 #container::-webkit-scrollbar {

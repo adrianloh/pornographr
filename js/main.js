@@ -510,7 +510,6 @@ Pornographr.factory('containerService', function(flickrFactory) {
 	factory.restoreLastPosition = function(callback) {
 		var lastSeenRowId = findLastPosition();
 		if (lastSeenRowId!==null) {
-			console.log(">> Scroll to: " + lastSeenRowId);
 			if (typeof(callback)==='function') {
 				factory.scrollTo("#"+lastSeenRowId, callback);
 			} else {
@@ -910,23 +909,19 @@ Pornographr.controller("GalleryController", function($rootScope, $scope, $locati
 						}
 					});
 				};
-			} else if (photoId==='null' && localStorage.hasOwnProperty('firstVisibleRow')) {
+			} else if (photoId==='null' && localStorage.hasOwnProperty('lastPagePosition')) {
 				// We are restoring a "general area" the user was last looking at
 				// Warning: If there is '#null' in the hash, this will *always* return you to
 				// the last location you were viewing when you left the site *irregardless*
 				// of which page you're requesting at load. Which means, to jump to a specific page,
 				// you must give it a url *without* a hash
-				if (localStorage.firstVisibleRow.match(/page_\d+_\d+/)) {
-					// A photoRow's id looks like 'page_1_10986781043' where the last number
-					// is the photoId of the first image in that row
-					page = parseInt(localStorage.lastPagePosition,10);
-					$location.replace();
-					$location.path(pathPrefix + page);
-					afterFirstRenderCallback = function() {
-						afterFirstRenderCallback = null;
-						containerService.restoreLastPosition();
-					};
-				}
+				page = parseInt(localStorage.lastPagePosition,10);
+				$location.replace();
+				$location.path(pathPrefix + page);
+				afterFirstRenderCallback = function() {
+					afterFirstRenderCallback = null;
+					containerService.restoreLastPosition();
+				};
 			}
 			if (isStream) {
 				$rootScope.mainTitle = "Photostream | Page " + page;
