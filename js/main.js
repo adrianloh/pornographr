@@ -6,31 +6,22 @@ function has_key(o,k) {
 }
 
 function regulateFunc(frequency, funcToRegulate) {
-	var buffer = [], isexcuted = false;
+	var buffer = [], lastArgs, isexcuted = setTimeout(function() {},0);
 	function regulatedFunc() {
-		var that = this;
-		if (isexcuted) {
-			buffer.push(arguments);
-			return;
-		}
-		isexcuted = true;
-		setTimeout(function() {
-			var doAgain = buffer.length>0,
-				lastArg = doAgain ? buffer.splice(-1)[0] : [];
-			buffer = [];
-			isexcuted = false;
-			if (doAgain) {
-				if (lastArg.length===0) {
-					regulatedFunc();
-				} else {
-					regulatedFunc.apply(that, lastArg);
-				}
+		var _this = this;
+		clearTimeout(isexcuted);
+		isexcuted = setTimeout(function() {
+			if (buffer.length>0 && buffer.slice(-1)[0]!==lastArgs) {
+				funcToRegulate.apply(_this, buffer.splice(-1)[0]);
+				buffer = [];
 			}
 		}, frequency);
-		if (arguments.length===0) {
-			funcToRegulate();
+		if (buffer.length===0) {
+			funcToRegulate.apply(_this, arguments);
+			lastArgs = arguments;
+			buffer.push(arguments);
 		} else {
-			funcToRegulate.apply(that, arguments);
+			buffer.push(arguments);
 		}
 	}
 	return regulatedFunc;
@@ -66,6 +57,36 @@ Pornographr.config(function ($anchorScrollProvider, $locationProvider) {
 	$anchorScrollProvider.disableAutoScrolling();
 });
 
+Pornographr.factory("utilityFunctions", function($timeout) {
+
+	var self = {};
+
+	self.regulateFunc = function(frequency, funcToRegulate) {
+		var buffer = [], lastArgs, isexcuted = $timeout(function() {});
+		function regulatedFunc() {
+			var _this = this;
+			$timeout.cancel(isexcuted);
+			isexcuted = $timeout(function() {
+				if (buffer.length>0 && buffer.slice(-1)[0]!==lastArgs) {
+					funcToRegulate.apply(_this, buffer.splice(-1)[0]);
+					buffer = [];
+				}
+			}, frequency);
+			if (buffer.length===0) {
+				funcToRegulate.apply(_this, arguments);
+				lastArgs = arguments;
+				buffer.push(arguments);
+			} else {
+				buffer.push(arguments);
+			}
+		}
+		return regulatedFunc;
+	};
+
+	return self;
+
+});
+
 Pornographr.factory("heatFactory", function(flickrFactory) {
 
 	var factory = {},
@@ -75,7 +96,7 @@ Pornographr.factory("heatFactory", function(flickrFactory) {
 		el = $("#" + heatContainer),
 		container = $("#container");
 
-	factory.dataPoints = ko.observableArray([]);
+	factory.dataPoints = [];
 
 	var waitForRows = setInterval(function() {
 		if ($(rowSelector).width()!==null) {
@@ -132,15 +153,15 @@ Pornographr.factory("heatFactory", function(flickrFactory) {
 			/* On first launch, Heat could still be undefined */
 		}
 		el.removeClass("heatMapUnderFilter");
-		factory.dataPoints().forEach(function(coor) {
-			Heat.newData(coor);
-		});
+		var i = factory.dataPoints.length;
+		while (i--) {
+			Heat.newData(factory.dataPoints[i]);
+		}
 	};
 
-	factory.dataPoints.subscribe(function(dataPoints) {
-		var v = dataPoints.slice(-1)[0];
-		Heat.newData(v);
-	});
+	factory.addHeatPoint = function(coor) {
+		Heat.newData(coor);
+	};
 
 	return factory;
 
@@ -384,7 +405,7 @@ Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrF
 								e.preventDefault();
 								break;
 							case keys.spacebar:
-								if ($(document.activeElement)[0].tagName.toLowerCase()!=='input') {
+								if (!isTypingIntoInputBox()) {
 									if (!spacebarIsUp) {
 										e.preventDefault();
 										return
@@ -395,7 +416,7 @@ Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrF
 								}
 								break;
 							case keys.backspace:
-								if ($(document.activeElement)[0].tagName.toLowerCase()!=='input') {
+								if (!isTypingIntoInputBox()) {
 									e.preventDefault();
 								}
 								break;
@@ -433,7 +454,7 @@ Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrF
 						switch (keyCode)
 						{
 							case keys.spacebar:
-								if ($(document.activeElement)[0].tagName.toLowerCase()!=='input') {
+								if (!isTypingIntoInputBox()) {
 									toggleHotbox();
 								}
 								spacebarIsUp = true;
@@ -785,7 +806,7 @@ Pornographr.factory("tagService", function() {
 
 });
 
-Pornographr.controller("TaggingController", function($rootScope, $scope, $timeout, firebaseService, heatFactory, flickrFactory, tagService, keyboardService) {
+Pornographr.controller("TaggingController", function($rootScope, $scope, $timeout, utilityFunctions, firebaseService, heatFactory, flickrFactory, tagService, keyboardService) {
 
 	$scope.existingWidgets = {};
 	$scope.tagWidgets = [];
@@ -829,7 +850,7 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, $timeou
 	}
 
 	var mustContainAllTerms = true,
-		redrawHeatMap = regulateFunc(2000, function(qualifiedPhotos) {
+		redrawHeatMap = utilityFunctions.regulateFunc(5000, function(qualifiedPhotos) {
 		if (qualifiedPhotos) {
 			heatFactory.drawFilterMap(qualifiedPhotos);
 		} else {
@@ -865,7 +886,8 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, $timeou
 		}
 	}
 
-	$rootScope.$on("refreshFilters", refreshFilters);
+	var refresh = utilityFunctions.regulateFunc(1250, refreshFilters);
+	$rootScope.$on("refreshFilters", refresh);
 
 	$scope.activeTag = function() {
 		return tagService.activeTag;
@@ -1101,7 +1123,9 @@ Pornographr.controller("GalleryController", function($window, $rootScope, $scope
 	$rootScope.$on("jumpToPage", function(event, location) {
 		$location.path(location.path);
 		$location.hash(location.hash);
-		loadPage();
+		$timeout(function() {
+			loadPage();
+		}, 500);
 	});
 
 	flickrAuth.authorized.then(function() {
@@ -1175,7 +1199,7 @@ Pornographr.controller("GalleryController", function($window, $rootScope, $scope
 				$location.hash(photo.id);
 			}
 			expandPhoto(photo);
-			heatFactory.dataPoints.push([photoIndex, photoRowId])
+			heatFactory.addHeatPoint([photoIndex, photoRowId]);
 		} else {
 			shrinkPhoto(photo);
 		}
@@ -1264,9 +1288,9 @@ Pornographr.controller("ScrubberController", function($rootScope, $scope, $timeo
 	};
 
 	$scope.thumbnails = [
-		{id:null, page:-1, src:"/img/slip.png"},
-		{id:null, page:-1, src:"/img/slip.png"},
-		{id:null, page:-1, src:"/img/slip.png"}
+		{id:null, page:1, src:"/img/slip.png"},
+		{id:null, page:1, src:"/img/slip.png"},
+		{id:null, page:1, src:"/img/slip.png"}
 	];
 
 	function push(photos) {
@@ -1308,7 +1332,6 @@ Pornographr.controller("ScrubberController", function($rootScope, $scope, $timeo
 				hash: photo.id
 			};
 			$rootScope.$broadcast("jumpToPage", jumpDest);
-			console.log(jumpDest);
 		} else {
 			console.error("Cannot derive page");
 		}
