@@ -6,16 +6,16 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 
 	var factory = {},
 		path="http://www.flickr.com/services/rest/",
-		doNotRender = ['deleteme'],
+		doNotRender = ['deleteme', 'trash'],
 		search_terms = null;
 
 	factory.photoRows = [];
 	factory.isBusyLoading = false;
+	factory.imagesPerGalleryLoad = 500;
 	factory.screen_width = 0;    // Set by the controller;
 
-	var currentPage = 0;
-
-	var whichRowIdAmI = {}, // Maps a photoId ==> rowId
+	var currentPage = 0,
+		whichRowIdAmI = {},     // Maps a photoId ==> rowId
 		idsInRow = {};          // Maps rowId ==> [list_of_photoIds_in_order_of_insertion]
 
 	factory.photoIdsInRow = idsInRow;
@@ -55,23 +55,6 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 		}
 	}
 
-	function saveFactory() {
-		$.ajax({
-			url: "https://smack.s3-ap-southeast-1.amazonaws.com/flickrLibrary.json",
-			type: "PUT",
-			headers: {
-				"Cache-Control":"max-age=315360000",
-				"x-amz-acl": "public-read-write",
-				"x-amz-storage-class": "REDUCED_REDUNDANCY"
-			},
-			contentType: "application/json",
-			data: JSON.stringify({photos:factory.photoRows}),
-			success: function(results) {
-				// pass
-			}
-		});
-	}
-
 	function fetchPage(page, perPage, callback) {
 		var oParser = new DOMParser(),  // We're using XML vs JSON for this particular request because $http seems to cache it
 			data2 = {
@@ -104,6 +87,7 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 	}
 
 	factory.initOnPage = function(page) {
+		initDefaults();
 		factory.upPage = page;
 		factory.downPage = page;
 		currentPage = page;
@@ -132,7 +116,7 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 			factory.upPage = factory.upPage<=0 ? 1 : factory.upPage;
 			currentPage = factory.upPage;
 		}
-		fetchPage(currentPage, 500, function(resp) {
+		fetchPage(currentPage, factory.imagesPerGalleryLoad, function(resp) {
 			var doc = resp.doc,         // This is XML
 				injectPhotos = [],
 				photoXMLElements = doc.getElementsByTagName("photo");
@@ -235,17 +219,16 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 	};
 
 	factory.untagImage = function(photoId, tag, callback) {
-		var imageTags = factory.db[photoId].tags, msg;
-		imageTags.splice(imageTags.indexOf(tag),1);
-		delete factory.tags[tag][photoId];
-		var data2 = {
-			api_key: flickrAuth.key,
-			auth_token: flickrAuth.token,
-			format: 'json',
-			nojsoncallback: 1,
-			method: 'flickr.photos.getInfo',
-			photo_id: photoId
-		};
+		var msg,
+			imageTags = factory.db[photoId].tags,
+			data2 = {
+				api_key: flickrAuth.key,
+				auth_token: flickrAuth.token,
+				format: 'json',
+				nojsoncallback: 1,
+				method: 'flickr.photos.getInfo',
+				photo_id: photoId
+			};
 		data2.api_sig = flickrAuth.sign(data2);
 		$http({method: 'GET', url:path, params:data2}).success(function(res, status, headers, config) {
 			if (res.stat==='ok') {
@@ -261,17 +244,22 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 					data2.api_sig = flickrAuth.sign(data2);
 					$http({method: 'POST', url:path, params:data2}).success(function(res, status, headers, config) {
 						if (res.stat==='ok') {
+							imageTags.splice(imageTags.indexOf(tag),1);
+							delete factory.tags[tag][photoId];
 							callback();
 						} else {
-							msg = "Could not remove tag " +  tag + " for photo " + photoId;
+							msg = "Could not remove tag " +  tag + " from photo " + photoId;
 							callback({error: msg});
 							console.error(msg);
 						}
 					});
 				} else {
-					msg = "Could not getInfo for photo " + photoId;
+					msg = "Could not get tagId for photo " + photoId;
 					callback({error:msg});
 				}
+			} else {
+				msg = "Could not getInfo for photo " + photoId;
+				callback({error:msg});
 			}
 		});
 	};
@@ -298,12 +286,9 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 		});
 	}
 
-	var checkReady = setInterval(function() {
-		if (flickrAuth.userid!==null) {
-			getUserTags();
-			clearInterval(checkReady);
-		}
-	}, 1000);
+	flickrAuth.authorized.then(function() {
+		getUserTags();
+	});
 
 	return factory;
 

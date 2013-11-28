@@ -11,6 +11,12 @@ var FlickrAPI= require('flickrnode').FlickrAPI;
 var flickr= new FlickrAPI(api_key, api_secret);
 
 server.configure(function() {
+	server.use(function(req, res, next) {
+		if(req.url.match(/js\/(main|flickrTrack|flickrFactory|flickrAuth)\.js/)) {
+			res.set("Cache-Control", "max-age=0, no-store, no-cache, must-revalidate");
+		}
+		return next();
+	});
 	server.use('/js', express.static(path.join(__dirname, 'js')));
 	server.use('/css', express.static(path.join(__dirname, 'css')));
 	server.use('/img', express.static(path.join(__dirname, 'img')));
@@ -45,6 +51,7 @@ server.get("/gettoken/:frob", function(req, mainRes) {
 });
 
 server.all("*", function(req, res) {
+	res.set("Cache-Control", "max-age=0, no-cache, must-revalidate");
 	res.sendfile(__dirname + '/index.html');
 });
 

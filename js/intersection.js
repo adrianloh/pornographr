@@ -5,6 +5,23 @@ Various implementations of set intersections
 var Set  = (function() {
 
 	var self = {};
+
+	self.sample = function(arr, size) {
+		var shuffled = arr.slice(0), i = arr.length, min = i - size, temp, index;
+		while (i-- > min) {
+			index = Math.floor(i * Math.random());
+			temp = shuffled[index];
+			shuffled[index] = shuffled[i];
+			shuffled[i] = temp;
+		}
+		return shuffled.slice(min);
+	};
+
+	self.randrange = function(minVal, maxVal, floatVal) {
+		var randVal = minVal+(Math.random()*(maxVal-minVal));
+		return floatVal===undefined ? Math.round(randVal) : randVal.toFixed(floatVal);
+	};
+
 	self.intersection1 = function(a, b) {
 		var t;
 		if (b.length > a.length) t = b, b = a, a = t; // indexOf to loop over shorter

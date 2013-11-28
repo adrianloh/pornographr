@@ -2,9 +2,10 @@
 
 var FlickrAuth = angular.module('flickrAuth', []);
 
-FlickrAuth.factory("flickrAuth", function($http) {
+FlickrAuth.factory("flickrAuth", function($http, $q) {
 
-	var self = {};
+	var self = {},
+		authorizeScreen = $("#authorizeScreen");
 	self.key = "fdfd759b5d6dc97444c0757cd51b730e";
 	self.secret = "03f13f18b10e2072";
 	self.token = null;
@@ -56,10 +57,15 @@ FlickrAuth.factory("flickrAuth", function($http) {
 				nojsoncallback: 1,
 				method: 'flickr.auth.getToken'
 			},
+			request = {
+				method: 'GET',
+				url:"http://api.flickr.com/services/rest/",
+				params: getTokenData
+			},
 			startTime = Date.now();
 		getTokenData.api_sig = self.sign(getTokenData);
 		var checkForAuthorization = setInterval(function() {
-			$http({method: 'GET', url:"http://api.flickr.com/services/rest/", params: getTokenData}).then(function(resObject) {
+			$http(request).then(function(resObject) {
 				var res = resObject.data;
 				if (res.hasOwnProperty('auth')) {
 					clearInterval(checkForAuthorization);
@@ -74,28 +80,36 @@ FlickrAuth.factory("flickrAuth", function($http) {
 		}, 5000);
 	}
 
+	var authorized = $q.defer();
+	self.authorized = authorized.promise;
+	self.authorized.then(function() {
+		authorizeScreen.hide();
+	});
+
 	if (!localStorage.hasOwnProperty("auth_token")) {
 		getAuthorizationUrl(function(res) {
 			var frob = res.frob,
 				url = res.url;
 			$("#authorizeUrl").attr("href", url);
-			$("#authorizeScreen").show();
+			authorizeScreen.show();
 			console.log("Go here: " + url);
 			getTokenFromFrob(frob, function(res) {
 				var token = res.auth.token._content,
 					userId = res.auth.user.nsid;
-				console.log("TOKEN: " + token);
-				console.log("USERID: " + userId);
-				self.token = token;
-				localStorage.auth_token = token;
-				self.userid = userId;
-				localStorage.userid = res.auth.user.nsid;
+				localStorage.auth_token = self.token = token;
+				localStorage.userid = self.userid = res.auth.user.nsid;
+				authorized.resolve();
+				console.log("TOKEN: " + self.token);
+				console.log("USERID: " + self.userid);
 			});
 		});
 	} else {
 		self.userid = localStorage.userid;
 		self.token = localStorage.auth_token;
+		authorized.resolve();
 	}
+
+
 
 	return self;
 

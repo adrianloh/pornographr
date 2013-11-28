@@ -159,3 +159,20 @@ function createPhotoSet(title, listOfPhotoIds) {
 		return doc.getElementsByTagName("rsp")[0].getAttribute("stat")==='ok';
 	});
 }
+
+function saveFactory() {
+	$.ajax({
+		url: "https://smack.s3-ap-southeast-1.amazonaws.com/flickrLibrary.json",
+		type: "PUT",
+		headers: {
+			"Cache-Control":"max-age=315360000",
+			"x-amz-acl": "public-read-write",
+			"x-amz-storage-class": "REDUCED_REDUNDANCY"
+		},
+		contentType: "application/json",
+		data: JSON.stringify({photos:factory.photoRows}),
+		success: function(results) {
+			// pass
+		}
+	});
+}

@@ -25,14 +25,14 @@
 			<div class="b green" ><div></div></div>
 		</div>
 	</div>
-	<div id="taggingArea" ng-controller="TaggingController" active-tag-tooltip>
+	<div id="taggingArea" ng-controller="TaggingController" mouse-tracker>
 		<div id="tagger-tooltip"
 			ng-if="activeTag().length>0">
 			<div class="tagger-tooltip-content" ng-bind="activeTag()"></div>
 		</div>
 		<div id="tagInputBoxHolder">
 			<form input-box-ops>
-				<input id="tagInputBox" type="text" ng-model="fuck.textValue" name="text" />
+				<input id="tagInputBox" type="text" ng-model="textValue" name="text" />
 			</form>
 		</div>
 		<ul id="tagList">
@@ -53,8 +53,18 @@
 				</div>
 				<div ng-class="{shortcutNumber: true, editingShortcutNumber: shortcuts.indexOf(widget.name)<0}"
 					ng-click="assignShortcut(widget.name, $event)"
-					ng-bind='shortcuts.indexOf(widget.name)>=0 ? shortcuts.indexOf(widget.name)+1 : "&nbsp;" '>
+					ng-bind='shortcuts.indexOf(widget.name)>=0 ? shortcutPrettyName(widget.name) : "&nbsp;" '>
 				</div>
+			</li>
+		</ul>
+	</div>
+	<div id="scrubberHolder" ng-controller="ScrubberController" ng-mousemove="refreshThumbs()">
+		<div class="scrubberClit" ng-style="{left: model.mouseX}" ng-click="goToPage()"></div>
+		<div id="scrubber" class="scrubberNormal" ng-click="goToPage()" scrubber-mouse-position></div>
+		<ul id="scrubberThumbHolder" ng-style="{left: model.mouseX-150}">
+			<li ng-repeat="thumb in thumbnails">
+				<!-- Pass goToPage the values of the attributes, not the photo object, because that's mutable! -->
+				<img class="scrubberThumbnail" ng-src="{{ thumb.src }}" ng-click="goToPage(thumb.page, thumb.id)"/>
 			</li>
 		</ul>
 	</div>
@@ -65,7 +75,7 @@
 					ng-if="!photo.ui.deleted"
 					bo-id="'holder_'+photo.id"
 					ng-class="{imageHolder: true, activeImage: activeImageId===photo.id, filterDim: (tagFilters.length>0 && photo.ui.dimwit)}">
-					<img bo-id="photo.id" bo-src="photo.src"
+					<img class="galleryPhoto" bo-id="photo.id" bo-src="photo.src"
 						ng-dblclick="onImageDblClick(photo, $index, photoRow.id)"
 						on-finish-image-render />
 					<div ng-if="photo.ui.xpanded" class="controlPanel">
@@ -81,7 +91,7 @@
 	</div>
 	<script src="/js/jquery-2.0.3.min.js"></script>
 	<script src="/js/jquery-ui-1.10.3.custom.min.js"></script>
-    <script src="/js/angular-1.2.2.min.js"></script>
+    <script src="/js/angular-1.2.2.js"></script>
 	<script src="/js/bindonce.js"></script>
     <script src="/js/knockout-3.0.0.js"></script>
 	<script src="/js/jquery.ba-throttle-debounce.min.js"></script>
@@ -92,6 +102,7 @@
 	<script src="/js/md5.js"></script>
 	<script src="/js/flickrAuth.js"></script>
 	<script src="/js/flickrFactory.js"></script>
+	<script src="/js/flickrTrack.js"></script>
 	<script src="/js/main.js"></script>
 	</body>
 </html>
