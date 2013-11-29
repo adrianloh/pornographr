@@ -31,7 +31,6 @@ Flickr.factory("flickrTrack", function($q, $http, $timeout, flickrAuth) {
 		return $http({method: 'GET', url:path, params:data2});
 	}
 
-	var delay = 0;
 	function injectThumbnail(index, pageOrigin, flickrPhotosList) {
 		factory.thumbnails[index] = flickrPhotosList.map(function(p) {
 			setTimeout(function() {
@@ -112,10 +111,8 @@ Flickr.factory("flickrTrack", function($q, $http, $timeout, flickrAuth) {
 			} else {
 				var d = $q.defer();
 				bigFatPromise = d.promise;
-				cache.forEach(function(o) {
-					var img = new Image();
-					img.src = o.src;
-					factory.thumbnails.push(o);
+				cache.forEach(function(photos) {
+					factory.thumbnails.push(photos);
 				});
 				d.resolve();
 			}

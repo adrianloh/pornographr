@@ -1,4 +1,4 @@
-<html ng-app="Pornographr">
+<html ng-app="Proteus">
 	<head>
 		<title ng-bind="mainTitle">Run Baby Run</title>
 		<link rel="stylesheet" type="text/css" href="/css/index.css">
@@ -77,6 +77,7 @@
 					ng-class="{imageHolder: true, activeImage: activeImageId===photo.id, filterDim: (tagFilters.length>0 && photo.ui.dimwit)}">
 					<img class="galleryPhoto" bo-id="photo.id" bo-src="photo.src"
 						ng-dblclick="onImageDblClick(photo, $index, photoRow.id)"
+						expand-and-shrink
 						on-finish-image-render />
 					<div ng-if="photo.ui.xpanded" class="controlPanel">
 						<a bo-href="photo.o" class="originalLink">
@@ -97,8 +98,9 @@
 	<script src="/js/jquery.scrollTo.js"></script>
 	<script src="/js/heatmap.js"></script>
 	<script src="/js/firebase.js"></script>
-	<script src="/js/intersection.js"></script>
+	<script src="/js/utilities.js"></script>
 	<script src="/js/md5.js"></script>
+	<script src="/js/moment.min.js"></script>
 	<script src="/js/flickrAuth.js"></script>
 	<script src="/js/flickrFactory.js"></script>
 	<script src="/js/flickrTrack.js"></script>

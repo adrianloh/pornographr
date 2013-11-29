@@ -2,7 +2,24 @@
 
 var Flickr = angular.module('flickrFactory', ['flickrAuth']);
 
-Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
+Flickr.directive('onFinishImageRender', function ($timeout, flickrFactory) {
+	return {
+		restrict: 'A',
+		link: function(scope, element, attrs) {
+			$(element).one("load", function(e) {
+				var photoId = element.attr("id");
+				if (photoId===flickrFactory.photoidOfLastImage) {
+					$timeout(function () {
+						flickrFactory.isBusyLoading = false;
+						flickrFactory.events.$broadcast("last_image_rendered");
+					});
+				}
+			});
+		}
+	};
+});
+
+Flickr.factory("flickrFactory", function($rootScope, $http, $location, flickrAuth) {
 
 	var factory = {},
 		path="http://www.flickr.com/services/rest/",
@@ -13,6 +30,7 @@ Flickr.factory("flickrFactory", function($http, $location, flickrAuth) {
 	factory.isBusyLoading = false;
 	factory.imagesPerGalleryLoad = 500;
 	factory.screen_width = 0;    // Set by the controller;
+	factory.events = $rootScope.$new(true);
 
 	var currentPage = 0,
 		whichRowIdAmI = {},     // Maps a photoId ==> rowId

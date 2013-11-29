@@ -1,6 +1,50 @@
-/*
-Various implementations of set intersections
-*/
+function has_key(o,k) {
+	return !(o[k]===undefined);
+}
+
+function regulateFunc(frequency, funcToRegulate) {
+	var buffer = [], lastArgs, isexcuted = setTimeout(function() {},0);
+	function regulatedFunc() {
+		var _this = this;
+		clearTimeout(isexcuted);
+		isexcuted = setTimeout(function() {
+			if (buffer.length>0 && buffer.slice(-1)[0]!==lastArgs) {
+				funcToRegulate.apply(_this, buffer.splice(-1)[0]);
+				buffer = [];
+			}
+		}, frequency);
+		if (buffer.length===0) {
+			funcToRegulate.apply(_this, arguments);
+			lastArgs = arguments;
+			buffer.push(arguments);
+		} else {
+			buffer.push(arguments);
+		}
+	}
+	return regulatedFunc;
+}
+
+function parseArguments(args) {
+	// Figure out, if a function is given 2||3 arguments,
+	// which is an options array, which is a callback
+	var data = {
+		options: null,
+		callback: null
+	};
+	if (args.length===3) {
+		data.options = args[1];
+		data.callback = args[2];
+	} else if (args.length===2) {
+		var lastArg = args[1];
+		console.log(lastArg);
+		if (typeof(lastArg)==="function") {
+			data.callback = lastArg;
+		} else if (typeof(lastArg)==="object") {
+			data.options = lastArg;
+		}
+	}
+	return data;
+}
 
 var Set  = (function() {
 

@@ -1,67 +1,18 @@
 /*global $, ko, document, window */
 "use strict";
 
-function has_key(o,k) {
-	return !(o[k]===undefined);
-}
+var Proteus = angular.module('Proteus', ['flickrFactory', 'flickrAuth', 'pasvaz.bindonce']);
 
-function regulateFunc(frequency, funcToRegulate) {
-	var buffer = [], lastArgs, isexcuted = setTimeout(function() {},0);
-	function regulatedFunc() {
-		var _this = this;
-		clearTimeout(isexcuted);
-		isexcuted = setTimeout(function() {
-			if (buffer.length>0 && buffer.slice(-1)[0]!==lastArgs) {
-				funcToRegulate.apply(_this, buffer.splice(-1)[0]);
-				buffer = [];
-			}
-		}, frequency);
-		if (buffer.length===0) {
-			funcToRegulate.apply(_this, arguments);
-			lastArgs = arguments;
-			buffer.push(arguments);
-		} else {
-			buffer.push(arguments);
-		}
-	}
-	return regulatedFunc;
-}
-
-function parseArguments(args) {
-	// Figure out, if a function is given 2||3 arguments,
-	// which is an options array, which is a callback
-	var data = {
-		options: null,
-		callback: null
-	};
-	if (args.length===3) {
-		data.options = args[1];
-		data.callback = args[2];
-	} else if (args.length===2) {
-		var lastArg = args[1];
-		if (typeof(lastArg==="function")) {
-			data.callback = lastArg;
-		} else if (typeof(lastArg==="object")) {
-			data.options = lastArg;
-		}
-	}
-	return data;
-}
-
-// --------------------- MAIN ------------------------- //
-
-var Pornographr = angular.module('Pornographr', ['flickrFactory', 'flickrAuth', 'pasvaz.bindonce']);
-
-Pornographr.config(function ($anchorScrollProvider, $locationProvider) {
+Proteus.config(function ($anchorScrollProvider, $locationProvider) {
 	$locationProvider.html5Mode(true);
 	$anchorScrollProvider.disableAutoScrolling();
 });
 
-Pornographr.factory("utilityFunctions", function($timeout) {
+Proteus.factory("utilityFunctions", function($timeout) {
 
-	var self = {};
+	var _utilityFunctions = {};
 
-	self.regulateFunc = function(frequency, funcToRegulate) {
+	_utilityFunctions.regulateFunc = function(frequency, funcToRegulate) {
 		var buffer = [], lastArgs, isexcuted = $timeout(function() {});
 		function regulatedFunc() {
 			var _this = this;
@@ -83,20 +34,20 @@ Pornographr.factory("utilityFunctions", function($timeout) {
 		return regulatedFunc;
 	};
 
-	return self;
+	return _utilityFunctions;
 
 });
 
-Pornographr.factory("heatFactory", function(flickrFactory) {
+Proteus.factory("heatFactory", function(flickrFactory) {
 
-	var factory = {},
+	var _heatFactory = {},
 		Heat,
-		heatContainer = "heatmapArea",
+		heatSelector = "heatmapArea",
 		rowSelector = ".photoRow",
-		el = $("#" + heatContainer),
+		el = $("#" + heatSelector),
 		container = $("#container");
 
-	factory.dataPoints = [];
+	_heatFactory.dataPoints = [];
 
 	var waitForRows = setInterval(function() {
 		if ($(rowSelector).width()!==null) {
@@ -113,9 +64,9 @@ Pornographr.factory("heatFactory", function(flickrFactory) {
 			width_cell = 80;
 
 		Heat = h337.create({
-			"element":document.getElementById(heatContainer),
+			"element": document.getElementById(heatSelector),
 			"radius": 8,
-			"visible":true
+			"visible": true
 		});
 		container.scrollTo();
 
@@ -136,7 +87,7 @@ Pornographr.factory("heatFactory", function(flickrFactory) {
 
 	}
 
-	factory.drawFilterMap = function(listOfPhotoIds) {
+	_heatFactory.drawFilterMap = function(listOfPhotoIds) {
 		el.addClass("heatMapUnderFilter");
 		Heat.clear();
 		var i, coor;
@@ -146,47 +97,47 @@ Pornographr.factory("heatFactory", function(flickrFactory) {
 		}
 	};
 
-	factory.refresh = function() {
+	_heatFactory.refresh = function() {
 		try {
 			Heat.clear();
 		} catch(e) {
 			/* On first launch, Heat could still be undefined */
 		}
 		el.removeClass("heatMapUnderFilter");
-		var i = factory.dataPoints.length;
+		var i = _heatFactory.dataPoints.length;
 		while (i--) {
-			Heat.newData(factory.dataPoints[i]);
+			Heat.newData(_heatFactory.dataPoints[i]);
 		}
 	};
 
-	factory.addHeatPoint = function(coor) {
+	_heatFactory.addHeatPoint = function(coor) {
 		Heat.newData(coor);
 	};
 
-	return factory;
+	return _heatFactory;
 
 });
 
-Pornographr.factory("firebaseService", function($q, flickrAuth) {
+Proteus.factory("firebaseService", function($q, flickrAuth) {
 
 	var firebase = new Firebase('https://oogly.firebaseio-demo.com/'),
 		ready = $q.defer(),
-		factory = {
+		_firebaseService = {
 			ready: ready.promise,
 			userRef: null
 		};
 
 	flickrAuth.authorized.then(function() {
 		var userRef = firebase.child(flickrAuth.userid);
-		factory.userRef = userRef;
+		_firebaseService.userRef = userRef;
 		ready.resolve(userRef);
 	});
 
-	return factory;
+	return _firebaseService;
 
 });
 
-Pornographr.directive('mouseTracker', function ($rootScope, keyboardService) {
+Proteus.directive('mouseTracker', function ($rootScope) {
 	return {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
@@ -218,7 +169,7 @@ Pornographr.directive('mouseTracker', function ($rootScope, keyboardService) {
 	};
 });
 
-Pornographr.directive('myHeadIsSpinning', function (flickrFactory) {
+Proteus.directive('myHeadIsSpinning', function (flickrFactory) {
 	return {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
@@ -232,24 +183,35 @@ Pornographr.directive('myHeadIsSpinning', function (flickrFactory) {
 	};
 });
 
-Pornographr.directive('onFinishImageRender', function ($timeout, flickrFactory) {
+Proteus.directive('inputBoxOps', function ($rootScope) {
 	return {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
-			$(element).one("load", function(e) {
-				var photoId = element.attr("id");
-				if (photoId===flickrFactory.photoidOfLastImage) {
-					$timeout(function () {
-						flickrFactory.isBusyLoading = false;
-						scope.afterLastImageRendered();
-					});
+			$(element).on("submit", function(e) {
+				var textInput = scope.textValue;
+				if (textInput.match(/:/)) {
+					var kv = textInput.split(":"), // textValue is the ng-model on $("#tagInputBox")
+						key = $.trim(kv[0]),
+						value = $.trim(kv[1]);
+					if (key.match(/tag/)) {
+						scope.createWidgetWithTag(value);
+						scope.$apply(function() {
+							// After we've grabbed the tagname, reset the box
+							// to make it easier to enter the next one
+							scope.textValue = "tag: ";
+						});
+					}
+				} else {
+					// This must be executed from GalleryController
+					// or the ui won't update
+					$rootScope.$broadcast("initSearch", textInput);
 				}
 			});
 		}
-	};
+	}
 });
 
-Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrFactory, tagService, keyboardService) {
+Proteus.directive('keyboardEvents', function ($document, $rootScope, flickrFactory, tagService, keyboardService) {
 	return {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
@@ -476,7 +438,33 @@ Pornographr.directive('keyboardEvents', function ($document, $rootScope, flickrF
 	};
 });
 
-Pornographr.directive('selectionInteractions', function ($rootScope, tagService, keyboardService, flickrFactory) {
+Proteus.factory("keyboardService", function() {
+
+	var _keyboardService = {};
+	_keyboardService.altKeyDown = false;
+	_keyboardService.shiftKeyDown = false;
+
+	$(window).blur(function() {
+		// When a user goes to another window, or switches tab
+		// using shortcut keys, our event handler won't receive
+		// the keydown event, so we gotta do it ourselves
+		for (var k in _keyboardService) {
+			if (typeof(_keyboardService[k])==='boolean') {
+				_keyboardService[k] = false;
+			}
+		}
+	});
+
+	return _keyboardService;
+
+});
+
+
+/*------------------------------------------------------------------------------------*/
+/*----------------------------------- TAGGING ----------------------------------------*/
+/*------------------------------------------------------------------------------------*/
+
+Proteus.directive('selectionInteractions', function (tagService, keyboardService, flickrFactory) {
 	return {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
@@ -507,7 +495,7 @@ Pornographr.directive('selectionInteractions', function ($rootScope, tagService,
 								// the user is not holding down SHIFT, then untag the image...
 								flickrFactory.untagImage(photoId, tag, function(error) {
 									if (!error) {
-										$rootScope.$broadcast("refreshFilters");
+										tagService.refreshFilters();
 										deselect(self);
 									} else {
 										imageHolder.addClass("imageHolderError");
@@ -537,7 +525,7 @@ Pornographr.directive('selectionInteractions', function ($rootScope, tagService,
 										deselect(self);
 									}, 250);
 									if (tagService.filteredByActiveTag()) {
-										$rootScope.$broadcast("refreshFilters");
+										tagService.refreshFilters();
 									}
 								}
 							});
@@ -571,79 +559,7 @@ Pornographr.directive('selectionInteractions', function ($rootScope, tagService,
 	}
 });
 
-Pornographr.directive('autoloadContentOnScroll', function ($timeout, $location, flickrFactory, containerService, $rootScope) {
-	return {
-		restrict: 'A',
-		link: function(scope, element, attrs) {
-			var last_position = 0,
-				scrollingContainer = $(element),
-				autopageContent = $("#autopageContent");
-
-			var WINDOW_HEIGHT = $(window).height(),
-				selectableClassName = "imageInView";
-
-			function isInsideViewport(top) {
-				return -10<top==top<WINDOW_HEIGHT;
-			}
-
-			// Note, $.debounce regulates the frequency the callback function is invoked
-			scrollingContainer.scroll($.debounce(750, function() {
-				// The moment we stop scrolling...
-				$("."+selectableClassName).removeClass(selectableClassName);
-				// Get all visible rows in the viewport
-				var rowsInView = $("ul.photoRow").filter(function(i,el) {
-					return isInsideViewport($(el).offset().top);
-				});
-
-				// Tag all images in the visible rows as selectable
-				rowsInView.find("img").addClass(selectableClassName);
-				$rootScope.$broadcast("viewIsRefreshed");
-
-				// Save our position
-				var lastSeenIds = rowsInView.slice(1,3).map(function(i,o) {
-					var rowId = o.getAttribute("id");
-					return flickrFactory.photoIdsInRow[rowId];
-				}).toArray().filter(function(o) {
-					return o!==undefined;
-				});
-				if (lastSeenIds.length>0) {
-					var firstPhotoId = lastSeenIds[0],
-						photoObject = flickrFactory.db[firstPhotoId];
-					localStorage.lastPagePosition = photoObject.ui.loadedFromPage;
-					localStorage.lastSeenIds = lastSeenIds;
-				} else {
-					delete localStorage.lastPagePosition;
-					delete localStorage.lastSeenIds;
-				}
-			}));
-
-			scrollingContainer.scroll(function () {
-				if (!($location.hash()==="null") && !containerService.isAutoScroll) {
-					scope.$apply(function() {
-						$location.hash('null');
-					});
-				}
-				var pos1 = (autopageContent.position().top-scrollingContainer.height())*-1/scrollingContainer.height(),
-					pos = pos1/(autopageContent.height()/scrollingContainer.height());
-				if (pos>last_position) {
-					// User is scrolling down
-					if (pos>=0.95) {
-						flickrFactory.fetchMoreImages(1);
-					}
-				} else {
-					// User is scrolling up
-					if (pos1===1) {
-						flickrFactory.fetchMoreImages(-1);
-					}
-				}
-				last_position = pos;
-			});
-
-		}
-	}
-});
-
-Pornographr.directive('draggableWidget', function () {
+Proteus.directive('draggableWidget', function () {
 	return {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
@@ -661,158 +577,79 @@ Pornographr.directive('draggableWidget', function () {
 	}
 });
 
-Pornographr.directive('inputBoxOps', function ($rootScope) {
-	return {
-		restrict: 'A',
-		link: function(scope, element, attrs) {
-			$(element).on("submit", function(e) {
-				var textInput = scope.textValue;
-				if (textInput.match(/:/)) {
-					var kv = textInput.split(":"), // textValue is the ng-model on $("#tagInputBox")
-						key = $.trim(kv[0]),
-						value = $.trim(kv[1]);
-					if (key.match(/tag/)) {
-						scope.createWidgetWithTag(value);
-						scope.$apply(function() {
-							// After we've grabbed the tagname, reset the box
-							// to make it easier to enter the next one
-							scope.textValue = "tag: ";
-						});
-					}
-				} else {
-					// This must be executed from GalleryController
-					// or the ui won't update
-					$rootScope.$broadcast("initSearch", textInput);
-				}
-			});
-		}
-	}
-});
+Proteus.factory("tagService", function(flickrFactory, heatFactory, utilityFunctions) {
 
-Pornographr.factory('containerService', function(flickrFactory) {
+	var _tagService = {};
+	_tagService.activeTag = "";
+	_tagService.tagFilters = [];
+	_tagService.mustContainAllTerms = true;
+	_tagService.shortcutAssignableKeyNames = {}; // Keyboard directive will populate this
 
-	var factory = {};
-	factory.isAutoScroll = false;
-	factory.container = $("#container");
-
-	factory.scrollTo = function() {
-		var argv = parseArguments(arguments),
-			elementId = arguments[0],
-			animation_option = argv.options!==null ? argv.options : {offset:{top:-150, left:0}};
-		var el = $(elementId);
-		if (el.length>0) {
-			factory.isAutoScroll = true;
-			factory.container.scrollTo(el, 500, animation_option);
-			if (argv.callback!==null) argv.callback();
-			setTimeout(function() {
-				factory.isAutoScroll = false;
-			}, 1500);
-		} else {
-			var msg = 'Could not find $("' + elementId + '") to scroll to';
-			console.error(msg);
-			if (argv.callback!==null) argv.callback({error:msg});
-		}
-	};
-
-	factory.restoreLastPosition = function(callback) {
-		var lastSeenRowId = findLastPosition();
-		if (lastSeenRowId!==null) {
-			if (typeof(callback)==='function') {
-				factory.scrollTo("#"+lastSeenRowId, callback);
-			} else {
-				factory.scrollTo("#"+lastSeenRowId);
-			}
-		} else {
-			console.warn("findLastPosition: Failed to find last restore position");
-		}
-	};
-
-	function findLastPosition() {
-		var moveToRowId = null, totals = {}, rowId;
-		if (localStorage.hasOwnProperty('lastSeenIds')) {
-			localStorage.lastSeenIds.split(",").forEach(function(photoId) {
-				var rowId = flickrFactory.whichRowIdAmI[photoId];
-				if (rowId!==undefined) {
-					if (!totals.hasOwnProperty(rowId)) {
-						totals[rowId] = 0;
-					}
-					totals[rowId]+=1;
-				}
-			});
-			if (!$.isEmptyObject(totals)) {
-				var currentHighScore = 0,
-					currentWinner = null;
-				for (rowId in totals) {
-					if (totals[rowId]>currentHighScore) {
-						currentHighScore = totals[rowId];
-						currentWinner = rowId;
-					}
-				}
-				if (currentHighScore>0) {
-					moveToRowId = currentWinner;
-				}
-			}
-		}
-		return moveToRowId;
-	}
-
-	return factory;
-
-});
-
-Pornographr.factory("keyboardService", function() {
-
-	var factory = {};
-	factory.altKeyDown = false;
-	factory.shiftKeyDown = false;
-
-	$(window).blur(function() {
-		// When a user goes to another window, or switches tab
-		// using shortcut keys, our event handler won't receive
-		// the keydown event, so we gotta do it ourselves
-		for (var k in factory) {
-			if (typeof(factory[k])==='boolean') {
-				factory[k] = false;
-			}
-		}
-	});
-
-	return factory;
-
-});
-
-Pornographr.factory("tagService", function() {
-
-	var factory = {};
-	factory.activeTag = "";
-	factory.tagFilters = [];
-	factory.shortcutAssignableKeyNames = {}; // Keyboard directive will populate this
-	factory.shortcuts = [];
+	_tagService.shortcuts = [];
 	for (var i=49; i<106; ++i) {
-		factory.shortcuts[i] = null;
+		_tagService.shortcuts[i] = null;
 	}
 
-	factory.filteredByActiveTag = function() {
-		return factory.tagFilters.indexOf(factory.activeTag)>=0;
-	};
-
-	factory.resetTileColors = function() {
+	_tagService.resetTileColors = function() {  // I don't like that this is here
 		["imageHolderError", "imageHolderOK"].forEach(function(selector) {
 			$("."+selector).removeClass(selector);
 		});
 	};
 
-	return factory;
+	_tagService.filteredByActiveTag = function() {
+		return _tagService.tagFilters.indexOf(_tagService.activeTag)>=0;
+	};
+
+	var redrawHeatMap = utilityFunctions.regulateFunc(5000, function(qualifiedPhotos) {
+		if (qualifiedPhotos) {
+			heatFactory.drawFilterMap(qualifiedPhotos);
+		} else {
+			heatFactory.refresh();
+		}
+	});
+
+	function refreshFilters() {
+		if (_tagService.tagFilters.length>0) {
+			var qualifiedPhotos = [];
+			for (var photoId in flickrFactory.db) {
+				var isTagged = [],
+					photo = flickrFactory.db[photoId];
+				_tagService.tagFilters.forEach(function(tag) {
+					try {
+						if (flickrFactory.tags[tag][photoId]!==undefined) {
+							isTagged.push(true);
+						}
+					} catch(e) { /*pass*/ }
+				});
+				if (_tagService.mustContainAllTerms) {
+					photo.ui.dimwit = isTagged.length===_tagService.tagFilters.length;
+				} else {
+					photo.ui.dimwit = isTagged.length>0;
+				}
+				if (photo.ui.dimwit) {
+					qualifiedPhotos.push(photoId);
+				}
+			}
+			redrawHeatMap(qualifiedPhotos);
+		} else {
+			redrawHeatMap();
+		}
+	}
+
+	_tagService.refreshFilters = utilityFunctions.regulateFunc(1250, refreshFilters);
+	return _tagService;
 
 });
 
-Pornographr.controller("TaggingController", function($rootScope, $scope, $timeout, utilityFunctions, firebaseService, heatFactory, flickrFactory, tagService, keyboardService) {
+Proteus.controller("TaggingController", function($rootScope, $scope, $timeout, utilityFunctions, firebaseService, heatFactory, flickrFactory, tagService, keyboardService) {
 
 	$scope.existingWidgets = {};
 	$scope.tagWidgets = [];
 	$scope.shortcuts = tagService.shortcuts;
 	$scope.tagFilters = tagService.tagFilters;
-
+	$scope.activeTag = function() {
+		return tagService.activeTag;
+	};
 	// The draggableWidget directive uses this to determine whether to "break" the widget out
 	// of $("#tagList") when its created so its near the user. This is set to false right after
 	// first load/restoring saved widgets.
@@ -848,50 +685,6 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, $timeou
 		saveData.shortcuts = $scope.shortcuts;
 		widgetsRef.set(JSON.stringify(saveData));
 	}
-
-	var mustContainAllTerms = true,
-		redrawHeatMap = utilityFunctions.regulateFunc(5000, function(qualifiedPhotos) {
-		if (qualifiedPhotos) {
-			heatFactory.drawFilterMap(qualifiedPhotos);
-		} else {
-			heatFactory.refresh();
-		}
-	});
-
-	function refreshFilters() {
-		if ($scope.tagFilters.length>0) {
-			var qualifiedPhotos = [];
-			for (var photoId in flickrFactory.db) {
-				var isTagged = [],
-					photo = flickrFactory.db[photoId];
-				$scope.tagFilters.forEach(function(tag) {
-					try {
-						if (flickrFactory.tags[tag][photoId]!==undefined) {
-							isTagged.push(true);
-						}
-					} catch(e) { /*pass*/ }
-				});
-				if (mustContainAllTerms) {
-					photo.ui.dimwit = isTagged.length===$scope.tagFilters.length;
-				} else {
-					photo.ui.dimwit = isTagged.length>0;
-				}
-				if (photo.ui.dimwit) {
-					qualifiedPhotos.push(photoId);
-				}
-			}
-			redrawHeatMap(qualifiedPhotos);
-		} else {
-			redrawHeatMap();
-		}
-	}
-
-	var refresh = utilityFunctions.regulateFunc(1250, refreshFilters);
-	$rootScope.$on("refreshFilters", refresh);
-
-	$scope.activeTag = function() {
-		return tagService.activeTag;
-	};
 
 	$scope.createWidgetWithTag = function(name, shortcutNumber) {
 		// shortcutNumber is only passed in when we restore state
@@ -993,7 +786,7 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, $timeou
 	$scope.filterVisibiltyIconStyle = function(tagName) {
 		var iconStyle = 'icon-eye-close';
 		if ($scope.tagFilters.indexOf(tagName)>=0) {
-			if (mustContainAllTerms && $scope.tagFilters.length>1) {
+			if (tagService.mustContainAllTerms && $scope.tagFilters.length>1) {
 				iconStyle = 'icon-link';
 			} else {
 				iconStyle = 'icon-eye-open';
@@ -1023,73 +816,208 @@ Pornographr.controller("TaggingController", function($rootScope, $scope, $timeou
 				// If no modifer keys are held down, then we're just switching
 				// between filters, so, empty them out.
 				$scope.tagFilters.splice(0, 1000);
-			} else if (keyboardService.altKeyDown) {
-				// If we're holding down ALT, then perform an ANY/OR search e.g
-				// show all photos containing either terms
-				mustContainAllTerms = false;
 			} else {
-				// Show photos that contain ALL terms
-				mustContainAllTerms = true;
+				tagService.mustContainAllTerms = !keyboardService.altKeyDown;
 			}
 			$scope.tagFilters.push(tagName);
 		}
-		refreshFilters();
+		tagService.refreshFilters();
 	};
 
 });
 
-Pornographr.controller("GalleryController", function($window, $rootScope, $scope, $location, $anchorScroll, $timeout, flickrAuth, flickrFactory, containerService, keyboardService, heatFactory, tagService) {
 
-	$scope.photoRows = flickrFactory.photoRows;
-	$scope.tagFilters = tagService.tagFilters;
-	$scope.activeImageId = null;
+/*------------------------------------------------------------------------------------*/
+/*-----------------------------------GALLERY -----------------------------------------*/
+/*------------------------------------------------------------------------------------*/
 
-	var pathPrefix = "/stream/",
-		container = containerService.container,
-		afterFirstRenderCallback = null,
-		m = $location.path().match(/\/(stream|search).+\d+/);
+Proteus.directive('autoloadContentOnScroll', function ($timeout, $location, flickrFactory, galleryService, $rootScope) {
+	return {
+		restrict: 'A',
+		link: function(scope, element, attrs) {
+			var last_position = 0,
+				scrollingContainer = $(element),
+				autopageContent = $("#autopageContent");
 
-	function setPageTitle(data) {
-		var title = [];
+			var WINDOW_HEIGHT = $(window).height(),
+				selectableClassName = "imageInView";
+
+			function isInsideViewport(top) {
+				return -10<top==top<WINDOW_HEIGHT;
+			}
+
+			// Note, $.debounce regulates the frequency the callback function is invoked
+			scrollingContainer.scroll($.debounce(750, function() {
+				// The moment we stop scrolling...
+				$("."+selectableClassName).removeClass(selectableClassName);
+				// Get all visible rows in the viewport
+				var rowsInView = $("ul.photoRow").filter(function(i,el) {
+					return isInsideViewport($(el).offset().top);
+				});
+
+				// Tag all images in the visible rows as selectable
+				rowsInView.find("img").addClass(selectableClassName);
+				$rootScope.$broadcast("viewIsRefreshed");
+
+				// Save our position
+				var lastSeenIds = rowsInView.slice(1,3).map(function(i,o) {
+					var rowId = o.getAttribute("id");
+					return flickrFactory.photoIdsInRow[rowId];
+				}).toArray().filter(function(o) {
+						return o!==undefined;
+					});
+				if (lastSeenIds.length>0) {
+					var firstPhotoId = lastSeenIds[0],
+						photoObject = flickrFactory.db[firstPhotoId];
+					localStorage.lastPagePosition = photoObject.ui.loadedFromPage;
+					localStorage.lastSeenIds = lastSeenIds;
+				} else {
+					delete localStorage.lastPagePosition;
+					delete localStorage.lastSeenIds;
+				}
+			}));
+
+			scrollingContainer.scroll(function () {
+				if (!($location.hash()==="null") && !galleryService.isAutoScroll) {
+					scope.$apply(function() {
+						$location.hash('null');
+					});
+				}
+				var pos1 = (autopageContent.position().top-scrollingContainer.height())*-1/scrollingContainer.height(),
+					pos = pos1/(autopageContent.height()/scrollingContainer.height());
+				return;
+				if (pos>last_position) {
+					// User is scrolling down
+					if (pos>=0.95) {
+						flickrFactory.fetchMoreImages(1);
+					}
+				} else {
+					// User is scrolling up
+					if (pos1===1) {
+						flickrFactory.fetchMoreImages(-1);
+					}
+				}
+				last_position = pos;
+			});
+
+		}
+	}
+});
+
+Proteus.factory('galleryService', function($timeout, $rootScope, $location, flickrFactory) {
+
+	var _galleryService = {};
+	var afterFirstRenderCallback = null;
+
+	flickrFactory.events.$on("last_image_rendered", function() {
+		if (typeof(afterFirstRenderCallback)==='function') {
+			afterFirstRenderCallback();
+			afterFirstRenderCallback = null;
+		}
+	});
+
+	_galleryService.isAutoScroll = false;
+	_galleryService.container = $("#container");
+
+	// For expandPhoto and shrinkPhoto, we're not using angular's
+	// data binding cause we don't want it listening to this property
+	// cause we'll end up with thousands of it
+	_galleryService.ui = {
+		expandPhoto: function(photo) {
+			photo.ui.xpanded = true;
+			var el = $("#"+photo.id);
+			el.attr("src", photo.src.replace("_t", "_n"))
+				.css({width: photo.size.w, height: photo.size.h})
+				.addClass("imgExpanded");
+		},
+		shrinkPhoto: function(photo) {
+			photo.ui.xpanded = false;
+			var el = $("#"+photo.id);
+			el.attr("src", photo.src)
+				.css({width: photo.size_thumb.w, height: photo.size_thumb.h})
+				.removeClass("imgExpanded");
+		}
+	};
+
+	_galleryService.updateUrl = function(data) {
+		var currentHash = $location.hash(),
+			hash = null,
+			prefix,
+			title = "";
+
+		if (currentHash==="null") {
+			$location.replace();
+		}
+
 		if (data.hasOwnProperty('keyword')) {
+			prefix = "/search/" + data.keyword + "/";
 			title += "Search for " + data.keyword + " | ";
 		} else {
+			prefix = "/stream/";
 			title += "Photostream | "
 		}
-		if (data.hasOwnProperty('photoId')) {
-			title += "Image " + data.photoId;
-		} else if (data.hasOwnProperty('page')) {
-			title += "Page " + data.page;
-		}
-		$rootScope.mainTitle = title;
-	}
 
-	function loadPage() {
+		title += "Page " + data.page + " | ";
+
+		if (data.hasOwnProperty('photoId')) {
+			hash = data.photoId;
+			title += "Image " + data.photoId;
+		}
+
+		$location.path(prefix + data.page);
+		if (hash!==null) $location.hash(hash);
+		$rootScope.mainTitle = title;
+
+	};
+
+	_galleryService.scrollTo = function() {
+		var argv = parseArguments(arguments),
+			elementId = arguments[0],
+			animation_option = argv.options!==null ? argv.options : {offset:{top:-150, left:0}};
+		var el = $(elementId),
+			photoId = $location.hash();
+		if (el.length>0) {
+			_galleryService.isAutoScroll = true;
+			_galleryService.container.scrollTo(el, 250, animation_option);
+			if (typeof(photoId)==='string' && flickrFactory.db.hasOwnProperty(photoId)) {
+				_galleryService.ui.expandPhoto(flickrFactory.db[photoId]);
+			}
+			setTimeout(function() {
+				_galleryService.isAutoScroll = false;
+			}, 1500);
+		} else {
+			var msg = 'Could not find $("' + elementId + '") to scroll to';
+			console.error(msg);
+			if (argv.callback!==null) argv.callback({error:msg});
+		}
+	};
+
+	_galleryService.restoreLastPosition = function() {
+		var lastSeenRowId = findLastPosition();
+		if (lastSeenRowId!==null) {
+			_galleryService.scrollTo("#"+lastSeenRowId);
+		} else {
+			console.warn("findLastPosition: Failed to find last restore position");
+		}
+	};
+
+	_galleryService.loadPage = function() {
 		// From the location url, figure out the position to load from the url, whether
 		// we're loading:
 		// 1) A specific photo that was last expanded
 		// 2) We were just scrolling around (restore the last seen row)
 		// 3) Restoring a previous search
+		var m = $location.path().match(/\/(stream|search).+\d+/);
 		if (m) {
 			var args = $location.path().split("/"),
 				page = parseInt(args.slice(-1),10),
 				isStream = args[1]==='stream',
 				search_term = isStream ? null : args[2],
 				photoId = $location.hash();
-			pathPrefix = $location.path().replace(/\d+$/,"");
 			if (photoId.length>0 && photoId!=='null') {
 				// We are restoring a photo
 				afterFirstRenderCallback = function() {
-					afterFirstRenderCallback = null;
-					containerService.scrollTo("#"+photoId, function(error) {
-						if (error) return;
-						var photo = flickrFactory.db[photoId];
-						if (photo) {
-							$scope.$apply(function() {
-								expandPhoto(photo);
-							});
-						}
-					});
+					_galleryService.scrollTo("#"+photoId);
 				};
 			} else if (photoId==='null' && localStorage.hasOwnProperty('lastPagePosition')) {
 				// We are restoring a "general area" the user was last looking at
@@ -1098,82 +1026,95 @@ Pornographr.controller("GalleryController", function($window, $rootScope, $scope
 				// of which page you're requesting at load. Which means, to jump to a specific page,
 				// you must give it a url *without* a hash
 				page = parseInt(localStorage.lastPagePosition, 10);
-				$location.replace();
-				$location.path(pathPrefix + page);
 				afterFirstRenderCallback = function() {
-					afterFirstRenderCallback = null;
-					containerService.restoreLastPosition();
+					_galleryService.restoreLastPosition();
 				};
 			}
 			if (isStream) {
-				setPageTitle({page:page});
+				_galleryService.updateUrl({page:page});
 				flickrFactory.initOnPage(page);
 			} else {
-				setPageTitle({keyword: search_term, page:page});
+				_galleryService.updateUrl({keyword: search_term, page:page});
 				flickrFactory.initSearch(search_term, page);
 			}
 		} else {
-			$location.replace();
-			$location.path("/stream/1");
-			setPageTitle({page:1});
+			_galleryService.updateUrl({page:1});
 			flickrFactory.initOnPage(1);
 		}
+	};
+
+	_galleryService.goToPage = function(data) {
+		_galleryService.updateUrl(data);
+		$timeout(function() {
+			_galleryService.loadPage();
+		},500);
+	};
+
+	function findLastPosition() {
+		var moveToRowId = null, totals = {}, rowId;
+		if (localStorage.hasOwnProperty('lastSeenIds')) {
+			localStorage.lastSeenIds.split(",").forEach(function(photoId) {
+				var rowId = flickrFactory.whichRowIdAmI[photoId];
+				if (rowId!==undefined) {
+					if (!totals.hasOwnProperty(rowId)) {
+						totals[rowId] = 0;
+					}
+					totals[rowId]+=1;
+				}
+			});
+			if (!$.isEmptyObject(totals)) {
+				var currentHighScore = 0,
+					currentWinner = null;
+				for (rowId in totals) {
+					if (totals[rowId]>currentHighScore) {
+						currentHighScore = totals[rowId];
+						currentWinner = rowId;
+					}
+				}
+				if (currentHighScore>0) {
+					moveToRowId = currentWinner;
+				}
+			}
+		}
+		return moveToRowId;
 	}
 
-	$rootScope.$on("jumpToPage", function(event, location) {
-		$location.path(location.path);
-		$location.hash(location.hash);
-		$timeout(function() {
-			loadPage();
-		}, 500);
-	});
+	return _galleryService;
+
+});
+
+Proteus.controller("GalleryController", function($window, $rootScope, $scope, $location, $anchorScroll, $timeout, flickrAuth, flickrFactory, galleryService, keyboardService, heatFactory, tagService) {
+
+	$scope.photoRows = flickrFactory.photoRows;
+	$scope.tagFilters = tagService.tagFilters;
+	$scope.activeImageId = null;
+
+	var container = galleryService.container;
 
 	flickrAuth.authorized.then(function() {
 		// TODO: How to move these two DOM references away into a directive?
 		container.show();
 		flickrFactory.screen_width = $("#autopageContent").width()*0.8;
-		loadPage();
+		galleryService.loadPage();
 	});
 
 	var firstLoad = true;
-	$scope.afterLastImageRendered = function() {
-		$rootScope.$broadcast("refreshFilters");
-		if (typeof(afterFirstRenderCallback)==='function') {
-			afterFirstRenderCallback();
-		}
+	flickrFactory.events.$on("last_image_rendered", function() {
+		tagService.refreshFilters();
 		if (firstLoad) {
 			container.trigger("scroll"); // To trigger the ability to select
 			firstLoad = false;
 		}
-	};
+	});
 
 	$rootScope.$on("initSearch", function(event, search_term) {
 		var page = 1;
-		pathPrefix = "/search/" + search_term + "/";
-		$location.path(pathPrefix + page);
-		setPageTitle({keyword: search_term, page:page});
+		galleryService.updateUrl({
+			keyword: search_term,
+			page: page
+		});
 		flickrFactory.initSearch(search_term, page);
 	});
-
-	// For expandPhoto and shrinkPhoto, we're not using angular's
-	// data binding cause we don't want it listening to this property
-	// cause we'll end up with thousands of it
-
-	function expandPhoto(photo) {
-		photo.ui.xpanded = true;
-		var el = $("#"+photo.id);
-		el.attr("src", photo.src.replace("_t", "_n"))
-			.css({width: photo.size.w, height: photo.size.h})
-			.addClass("imgExpanded");
-	}
-
-	function shrinkPhoto(photo) {
-		photo.ui.xpanded = false;
-		var el = $("#"+photo.id);
-		el.attr("src", photo.src)
-			.css({width: photo.size_thumb.w, height: photo.size_thumb.h})
-			.removeClass("imgExpanded");
-	}
 
 	$scope.openOriginalLink = function(event, originalImageLink) {
 		window.open(originalImageLink);
@@ -1181,27 +1122,17 @@ Pornographr.controller("GalleryController", function($window, $rootScope, $scope
 
 	$scope.onImageDblClick = function(photo, photoIndex, photoRowId) {
 		var expanding = !photo.ui.xpanded,
-			currentHash = $location.hash(),
 			pageNumber = photoRowId.split("_")[1];
 		$scope.activeImageId = photo.id;
 		if (expanding) {
-			if (currentHash==="null") {
-				$location.replace();
-			}
-			if (currentHash!==photo.id) {
-				if (pathPrefix.match(/search/)) {
-					var search_term = pathPrefix.split("/").slice(-2)[0];
-					setPageTitle({keyword: search_term, photoId: photo.id});
-				} else {
-					setPageTitle({photoId:photo.id});
-				}
-				$location.path(pathPrefix + pageNumber);
-				$location.hash(photo.id);
-			}
-			expandPhoto(photo);
+			galleryService.updateUrl({
+				photoId: photo.id,
+				page: pageNumber
+			});
+			galleryService.ui.expandPhoto(photo);
 			heatFactory.addHeatPoint([photoIndex, photoRowId]);
 		} else {
-			shrinkPhoto(photo);
+			galleryService.ui.shrinkPhoto(photo);
 		}
 	};
 
@@ -1243,32 +1174,32 @@ Pornographr.controller("GalleryController", function($window, $rootScope, $scope
 		}
 		$scope.activeImageId = nextPhotoId;
 		$scope.$apply(function() {
-			expandPhoto(flickrFactory.db[nextPhotoId]);
-			// TODO: Move this into containerService
-			containerService.scrollTo("#"+nextPhotoId, {offset:{top:-200, left:0}} );
+			galleryService.ui.expandPhoto(flickrFactory.db[nextPhotoId]);
+//			galleryService.scrollTo("#"+nextPhotoId, {offset:{top:-200, left:0}} );
+			galleryService.scrollTo("#"+nextPhotoId);
 		});
 	}
 
 	// In the so-called "Angular world", where is this *supposed* to go?
 	$window.addEventListener("popstate", function(e) {
-		var hash = $location.hash(),
-			path = $location.path(),
-			photoIdSelector = "#"+hash; // Careful, this could be the string '#undefined'
-		if (hash.length>0 && hash!=='null' && $(photoIdSelector).length!==0) {
-			containerService.scrollTo(photoIdSelector, function(err) {
-				var photo = flickrFactory.db[hash];
-				if (photo) {
-					$scope.$apply(function() {
-						expandPhoto(photo);
-					});
-				}
-			});
+		var hash = $location.hash();
+		if (typeof(hash)==='string') {
+			if ($("#" + hash).length!==0) {
+				galleryService.scrollTo("#" + hash, {offset:{top:-50, left:0}});
+			} else if (hash!=='null') {
+//				galleryService.loadPage();
+			}
 		}
 	});
 
 });
 
-Pornographr.directive('scrubberMousePosition', function () {
+
+/*------------------------------------------------------------------------------------*/
+/*----------------------------------- HOTBOX -----------------------------------------*/
+/*------------------------------------------------------------------------------------*/
+
+Proteus.directive('scrubberMousePosition', function () {
 	return {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
@@ -1281,7 +1212,7 @@ Pornographr.directive('scrubberMousePosition', function () {
 	};
 });
 
-Pornographr.controller("ScrubberController", function($rootScope, $scope, $timeout, keyboardService, flickrTrack, flickrFactory) {
+Proteus.controller("ScrubberController", function($rootScope, $scope, $timeout, keyboardService, flickrTrack, flickrFactory, galleryService) {
 
 	$scope.model = {
 		mouseX: 0
@@ -1327,11 +1258,10 @@ Pornographr.controller("ScrubberController", function($rootScope, $scope, $timeo
 		}
 		if (photo!==undefined) {
 			page = Math.ceil((photo.page*flickrTrack.imagesToFetchPerPage)/flickrFactory.imagesPerGalleryLoad);
-			jumpDest = {
-				path: '/stream/' + page,
-				hash: photo.id
-			};
-			$rootScope.$broadcast("jumpToPage", jumpDest);
+			galleryService.goToPage({
+				page: page,
+				photoId: photo.id
+			});
 		} else {
 			console.error("Cannot derive page");
 		}
