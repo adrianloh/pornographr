@@ -225,6 +225,13 @@ img.galleryPhoto {
 	color: rgb(54, 61, 73);
 }
 
+.shrinkButton {
+	position: absolute;
+	right: 6px;
+	top: 3px;
+	color: rgb(54, 61, 73);
+}
+
 img.ui-selecting {
 	-webkit-filter: opacity(0.3) brightness(1.5) saturate(2.0);
 }

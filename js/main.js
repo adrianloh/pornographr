@@ -183,7 +183,7 @@ Proteus.directive('myHeadIsSpinning', function (flickrFactory) {
 	};
 });
 
-Proteus.directive('inputBoxOps', function ($rootScope) {
+Proteus.directive('inputBoxOps', function ($rootScope, tagService) {
 	return {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
@@ -202,9 +202,19 @@ Proteus.directive('inputBoxOps', function ($rootScope) {
 						});
 					}
 				} else {
-					// This must be executed from GalleryController
-					// or the ui won't update
-					$rootScope.$broadcast("initSearch", textInput);
+					var selectedImages = $(".ui-selected");
+					if (selectedImages.length>0) {
+						if (tagService.activeTag.length===0) {
+							tagService.activeTag = textInput;
+						}
+						$.each(selectedImages, function(i,el) {
+							tagService.tagImage(el.getAttribute("id"), textInput);
+						});
+					} else {
+						// This must be executed from GalleryController
+						// or the ui won't update
+						$rootScope.$broadcast("initSearch", textInput);
+					}
 				}
 			});
 		}
@@ -342,13 +352,13 @@ Proteus.directive('keyboardEvents', function ($document, $rootScope, flickrFacto
 						{
 							case keys.arrow_right:
 								if (!isTypingIntoInputBox()) {
-									$rootScope.$broadcast("goToNextImage");
+									$rootScope.$broadcast("goToNextImage", 1);
 									e.preventDefault();
 								}
 								break;
 							case keys.arrow_left:
 								if (!isTypingIntoInputBox()) {
-									$rootScope.$broadcast("goToPreviousImage");
+									$rootScope.$broadcast("goToNextImage", -1);
 									e.preventDefault();
 								}
 								break;
@@ -516,19 +526,7 @@ Proteus.directive('selectionInteractions', function (tagService, keyboardService
 							}
 						} else {
 							// This image is not tagged
-							flickrFactory.tagImage(photoId, tag).then(function(resObject) {
-								var res = resObject.data;
-								if (res.stat==='ok' && res.tags.tag.length>0) {
-									imageHolder.addClass("imageHolderOK");
-									setTimeout(function() {
-										imageHolder.removeClass("imageHolderOK");
-										deselect(self);
-									}, 250);
-									if (tagService.filteredByActiveTag()) {
-										tagService.refreshFilters();
-									}
-								}
-							});
+							tagService.tagImage(photoId, tag);
 						}
 					} else {
 						if (keyboardService.shiftKeyDown) {
@@ -635,6 +633,24 @@ Proteus.factory("tagService", function(flickrFactory, heatFactory, utilityFuncti
 			redrawHeatMap();
 		}
 	}
+
+	_tagService.tagImage = function(photoId, tag) {
+		var el = $("#"+photoId),
+			imageHolder = $("#holder_" + photoId);
+		flickrFactory.tagImage(photoId, tag).then(function(resObject) {
+			var res = resObject.data;
+			if (res.stat==='ok' && res.tags.tag.length>0) {
+				imageHolder.addClass("imageHolderOK");
+				setTimeout(function() {
+					imageHolder.removeClass("imageHolderOK");
+					el.removeClass('ui-selecting').removeClass('ui-selected');
+				}, 250);
+				if (_tagService.filteredByActiveTag()) {
+					_tagService.refreshFilters();
+				}
+			}
+		});
+	};
 
 	_tagService.refreshFilters = utilityFunctions.regulateFunc(1250, refreshFilters);
 	return _tagService;
@@ -885,7 +901,6 @@ Proteus.directive('autoloadContentOnScroll', function ($timeout, $location, flic
 				}
 				var pos1 = (autopageContent.position().top-scrollingContainer.height())*-1/scrollingContainer.height(),
 					pos = pos1/(autopageContent.height()/scrollingContainer.height());
-				return;
 				if (pos>last_position) {
 					// User is scrolling down
 					if (pos>=0.95) {
@@ -970,21 +985,47 @@ Proteus.factory('galleryService', function($timeout, $rootScope, $location, flic
 
 	};
 
+
+	var lastTopOffset = -10000;
 	_galleryService.scrollTo = function() {
 		var argv = parseArguments(arguments),
 			elementId = arguments[0],
-			animation_option = argv.options!==null ? argv.options : {offset:{top:-150, left:0}};
-		var el = $(elementId),
-			photoId = $location.hash();
+			default_option = {offset:{top: -100, left:0}},
+			animation_option = argv.options!==null ? argv.options : default_option,
+			el = $(elementId),
+			photoId = $location.hash(),
+			skip = false,
+			expandAfterWards = false;
 		if (el.length>0) {
-			_galleryService.isAutoScroll = true;
-			_galleryService.container.scrollTo(el, 250, animation_option);
-			if (typeof(photoId)==='string' && flickrFactory.db.hasOwnProperty(photoId)) {
-				_galleryService.ui.expandPhoto(flickrFactory.db[photoId]);
+			if (el.offset().top===lastTopOffset) {
+				skip = true;
 			}
-			setTimeout(function() {
-				_galleryService.isAutoScroll = false;
-			}, 1500);
+			if (el.hasClass("galleryPhoto")) {
+				expandAfterWards = true;
+				photoId = el.attr("id");
+			}
+			if (expandAfterWards===false &&
+				typeof(photoId)==='string' &&
+				flickrFactory.db.hasOwnProperty(photoId)) {
+				expandAfterWards = true;
+			}
+			if (!skip) {
+				if (expandAfterWards) {
+					animation_option.onAfter = function() {
+						_galleryService.ui.expandPhoto(flickrFactory.db[photoId]);
+					}
+				}
+				_galleryService.isAutoScroll = true;
+				_galleryService.container.scrollTo(el, 250, animation_option);
+				setTimeout(function() {
+					_galleryService.isAutoScroll = false;
+				}, 1500);
+			} else {
+				if (expandAfterWards) {
+					_galleryService.ui.expandPhoto(flickrFactory.db[photoId]);
+				}
+			}
+			lastTopOffset = el.offset().top;
 		} else {
 			var msg = 'Could not find $("' + elementId + '") to scroll to';
 			console.error(msg);
@@ -1083,7 +1124,7 @@ Proteus.factory('galleryService', function($timeout, $rootScope, $location, flic
 
 });
 
-Proteus.controller("GalleryController", function($window, $rootScope, $scope, $location, $anchorScroll, $timeout, flickrAuth, flickrFactory, galleryService, keyboardService, heatFactory, tagService) {
+Proteus.controller("GalleryController", function($window, $rootScope, $scope, $location, $timeout, flickrAuth, flickrFactory, galleryService, keyboardService, heatFactory, tagService) {
 
 	$scope.photoRows = flickrFactory.photoRows;
 	$scope.tagFilters = tagService.tagFilters;
@@ -1117,7 +1158,7 @@ Proteus.controller("GalleryController", function($window, $rootScope, $scope, $l
 	});
 
 	$scope.openOriginalLink = function(event, originalImageLink) {
-		window.open(originalImageLink);
+		$window.open(originalImageLink);
 	};
 
 	$scope.onImageDblClick = function(photo, photoIndex, photoRowId) {
@@ -1136,13 +1177,7 @@ Proteus.controller("GalleryController", function($window, $rootScope, $scope, $l
 		}
 	};
 
-	$rootScope.$on("goToNextImage", function() {
-		arrowNavigate(1);
-	});
-
-	$rootScope.$on("goToPreviousImage", function() {
-		arrowNavigate(-1);
-	});
+	$scope.shrinkPhoto = galleryService.ui.shrinkPhoto;
 
 	$scope.updateCurrentProgress = function() {
 		// Called by ng-style from $("#loadedPages")
@@ -1160,7 +1195,7 @@ Proteus.controller("GalleryController", function($window, $rootScope, $scope, $l
 		return {left: left+"%", width: width+"%"};
 	};
 
-	function arrowNavigate(direction) {
+	$rootScope.$on("goToNextImage", function arrowNavigate(event, direction) {
 		var stream = flickrFactory.stream,
 			nextPhotoId;
 		if ($scope.activeImageId===null) {
@@ -1174,18 +1209,18 @@ Proteus.controller("GalleryController", function($window, $rootScope, $scope, $l
 		}
 		$scope.activeImageId = nextPhotoId;
 		$scope.$apply(function() {
-			galleryService.ui.expandPhoto(flickrFactory.db[nextPhotoId]);
-//			galleryService.scrollTo("#"+nextPhotoId, {offset:{top:-200, left:0}} );
 			galleryService.scrollTo("#"+nextPhotoId);
 		});
-	}
+	});
 
 	// In the so-called "Angular world", where is this *supposed* to go?
 	$window.addEventListener("popstate", function(e) {
 		var hash = $location.hash();
 		if (typeof(hash)==='string') {
-			if ($("#" + hash).length!==0) {
-				galleryService.scrollTo("#" + hash, {offset:{top:-50, left:0}});
+			var selector = "#" + hash;
+			if ($(selector).length!==0) {
+				var opt = {offset:{top:0, left:0}};
+				galleryService.scrollTo(selector, opt);
 			} else if (hash!=='null') {
 //				galleryService.loadPage();
 			}
