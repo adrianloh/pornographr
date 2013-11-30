@@ -65,9 +65,9 @@ Flickr.factory("flickrFactory", function($rootScope, $http, $location, flickrAut
 		}
 		if (factory.tags[tag]===undefined) {
 			factory.tags[tag] = {};
-			factory.tags[tag]._count = 0;
+			factory.tags[tag].count = 0;
 		}
-		factory.tags[tag]._count+=increment;
+		factory.tags[tag].count+=increment;
 		if (photoId) {
 			factory.tags[tag][photoId] = true;
 		}
@@ -264,6 +264,7 @@ Flickr.factory("flickrFactory", function($rootScope, $http, $location, flickrAut
 						if (res.stat==='ok') {
 							imageTags.splice(imageTags.indexOf(tag),1);
 							delete factory.tags[tag][photoId];
+							factory.tags[tag].count-=1;
 							callback();
 						} else {
 							msg = "Could not remove tag " +  tag + " from photo " + photoId;
@@ -296,7 +297,7 @@ Flickr.factory("flickrFactory", function($rootScope, $http, $location, flickrAut
 		$http({method: 'GET', url:path, params:data2}).success(function(res, status, headers, config) {
 			if (res.stat==='ok') {
 				res.who.tags.tag.forEach(function(tag) {
-					associateTagWithImage( tag._content, parseInt(tag.count,10) );
+					associateTagWithImage( tag._content.toLowerCase(), parseInt(tag.count, 10) );
 				});
 			} else {
 				console.error(res);

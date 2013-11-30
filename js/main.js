@@ -204,9 +204,6 @@ Proteus.directive('inputBoxOps', function ($rootScope, tagService) {
 				} else {
 					var selectedImages = $(".ui-selected");
 					if (selectedImages.length>0) {
-						if (tagService.activeTag.length===0) {
-							tagService.activeTag = textInput;
-						}
 						$.each(selectedImages, function(i,el) {
 							tagService.tagImage(el.getAttribute("id"), textInput);
 						});
@@ -363,7 +360,7 @@ Proteus.directive('keyboardEvents', function ($document, $rootScope, flickrFacto
 								}
 								break;
 							case keys.tilde:
-								flickrFactory.fetchMoreImages(-1);
+								$rootScope.$broadcast("toggleTagCloud");
 								e.preventDefault();
 								break;
 							case keys.esc:
@@ -671,6 +668,8 @@ Proteus.controller("TaggingController", function($rootScope, $scope, $timeout, u
 	// first load/restoring saved widgets.
 	$scope.isDoneRestoringTags = false;
 
+	/* tagWidget save and restore */
+
 	var widgetsRef = null;
 
 	firebaseService.ready.then(function(userRef) {
@@ -699,8 +698,73 @@ Proteus.controller("TaggingController", function($rootScope, $scope, $timeout, u
 		var saveData = {};
 		saveData.tagWidgets = $scope.tagWidgets.map(function(o) { return o.name; });
 		saveData.shortcuts = $scope.shortcuts;
-		widgetsRef.set(JSON.stringify(saveData));
+		widgetsRef.set(JSON.stringify(saveData), function(error) {
+			if (error) {
+				console.error('widgets could not be saved.' + error);
+			}
+		});
 	}
+
+	/* tag cloud stuff */
+
+	$scope.tagCloudIsVisible = false;
+	$scope.tagsCurrentlyVisible = [];
+	$scope.tagCloudList = [];
+	$scope.tagHighScore = 1;
+
+	$scope.toggleTagCloud = function() {
+		var nextState = !$scope.tagCloudIsVisible;
+		$timeout(function() {
+			if (nextState===true) {
+				refreshTags();
+				recolorTags();
+			}
+			$scope.tagCloudIsVisible = nextState;
+		});
+	};
+
+	$scope.getTagFontSize = function(count) {
+		var size = ((count/$scope.tagHighScore)*6).toFixed(2);
+		return {'font-size': size+"em"};
+	};
+
+	$rootScope.$on("viewIsRefreshed", function() {
+		if ($scope.tagCloudIsVisible) {
+			$timeout(recolorTags);
+		}
+	});
+
+	$rootScope.$on("toggleTagCloud", $scope.toggleTagCloud);
+
+	flickrFactory.events.$on("last_image_rendered", function() {
+		if ($scope.tagCloudIsVisible) {
+			$timeout(refreshTags);
+		}
+	});
+
+	function recolorTags() {
+		$scope.tagsCurrentlyVisible.splice(0,1000000);
+		$(".imageInView").toArray().map(function(o) { return o.getAttribute("id") }).forEach(function(id) {
+			var tagsOnImage = flickrFactory.db[id].tags;
+			$scope.tagsCurrentlyVisible = $scope.tagsCurrentlyVisible.concat(tagsOnImage);
+		});
+	}
+
+	function refreshTags() {
+		$scope.tagCloudList.splice(0,10000);
+		for (var tag in flickrFactory.tags) {
+			var c = flickrFactory.tags[tag].count;
+			if (c>$scope.tagHighScore) {
+				$scope.tagHighScore = c;
+			}
+			$scope.tagCloudList.push({
+				name: tag,
+				count: c
+			});
+		}
+	}
+
+	/* tagging core */
 
 	$scope.createWidgetWithTag = function(name, shortcutNumber) {
 		// shortcutNumber is only passed in when we restore state
@@ -711,7 +775,7 @@ Proteus.controller("TaggingController", function($rootScope, $scope, $timeout, u
 				name: name
 			};
 			$scope.existingWidgets[widget.name] = widget;
-			$scope.$apply(function() {
+			$timeout(function() {
 				if (shortcutNumber===undefined) {
 					availableShortcutSlot = $scope.shortcuts.map(function(o,i) {
 						// Why 58? Because on the main keyboard, numbers 1-9 have
@@ -729,8 +793,8 @@ Proteus.controller("TaggingController", function($rootScope, $scope, $timeout, u
 					$scope.armTagWidget(name);
 					$scope.toggleTagFilter(name);
 				}
+				persist();
 			});
-			persist();
 		}
 	};
 

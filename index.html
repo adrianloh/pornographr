@@ -26,6 +26,18 @@
 		</div>
 	</div>
 	<div id="taggingArea" ng-controller="TaggingController" mouse-tracker>
+		<div>
+			<i class="icon-tags toggleTagCloudListButton" ng-click="toggleTagCloud()"></i>
+		</div>
+		<div ng-if="tagCloudIsVisible" id="tagCloudHolder" bindonce>
+			<ul id="tagCloudList">
+				<li ng-repeat="tag in tagCloudList" bo-text="tag.name"
+				    ng-class="{tagCloudItem: true, tagCloudItemNormal: true, tagCloudItemVisible: tagsCurrentlyVisible.indexOf(tag.name)>=0, tagCloudItemActive: tagFilters.indexOf(tag.name)>=0}"
+					ng-style="getTagFontSize(tag.count)"
+					ng-click="toggleTagFilter(tag.name)"
+					ng-dblclick="createWidgetWithTag(tag.name)"></li>
+			</ul>
+		</div>
 		<div id="tagger-tooltip"
 			ng-if="activeTag().length>0">
 			<div class="tagger-tooltip-content" ng-bind="activeTag()"></div>

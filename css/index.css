@@ -343,3 +343,61 @@ img.ui-selected {
 	width: 80px;
 	cursor: pointer;
 }
+
+#tagCloudHolder {
+	width: 100%;
+	background: rgba(0, 0, 0, 0.82);
+	position: fixed;
+	height: 100%;
+	top: 0;
+	left: 0;
+	-moz-user-select: none;
+	-khtml-user-select: none;
+	-webkit-user-select: none;
+	-o-user-select: none;
+}
+
+#tagCloudList {
+	margin: 100px auto;
+	padding-right: 100px;
+}
+
+.tagCloudItem {
+	display: inline-block;
+	margin-left: 10px;
+	font-family: "Orienta", sans-serif;
+	margin-top: 5px;
+	margin-bottom: 5px;
+	cursor: pointer;
+}
+
+.tagCloudItem:hover {
+	background-color: #ca1d21;
+}
+
+.tagCloudItemNormal {
+	color: white;
+}
+
+.tagCloudItemVisible {
+	color: rgb(0, 235, 117);
+}
+
+.tagCloudItemActive {
+	border: 1px solid white;
+}
+
+.toggleTagCloudListButton {
+	position: fixed;
+	top: 12px;
+	color: rgb(177, 177, 177);
+	right: 100px;
+	font-size: 20px;
+	cursor: pointer;
+	z-index: 1;
+}
+
+
+.toggleTagCloudListButton:hover {
+	color: rgb(0, 235, 117);
+}
