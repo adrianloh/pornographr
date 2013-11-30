@@ -31,7 +31,7 @@
 		</div>
 		<div ng-if="tagCloudIsVisible" id="tagCloudHolder" bindonce>
 			<ul id="tagCloudList">
-				<li ng-repeat="tag in tagCloudList" bo-text="tag.name"
+				<li ng-repeat="tag in tagCloudList | filter:isTagVisible" bo-text="tag.name"
 				    ng-class="{tagCloudItem: true, tagCloudItemNormal: true, tagCloudItemVisible: tagsCurrentlyVisible.indexOf(tag.name)>=0, tagCloudItemActive: tagFilters.indexOf(tag.name)>=0}"
 					ng-style="getTagFontSize(tag.count)"
 					ng-click="toggleTagFilter(tag.name)"

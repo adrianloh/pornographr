@@ -595,7 +595,7 @@ Proteus.factory("tagService", function(flickrFactory, heatFactory, utilityFuncti
 		return _tagService.tagFilters.indexOf(_tagService.activeTag)>=0;
 	};
 
-	var redrawHeatMap = utilityFunctions.regulateFunc(5000, function(qualifiedPhotos) {
+	var redrawHeatMap = utilityFunctions.regulateFunc(3000, function(qualifiedPhotos) {
 		if (qualifiedPhotos) {
 			heatFactory.drawFilterMap(qualifiedPhotos);
 		} else {
@@ -649,7 +649,7 @@ Proteus.factory("tagService", function(flickrFactory, heatFactory, utilityFuncti
 		});
 	};
 
-	_tagService.refreshFilters = utilityFunctions.regulateFunc(1250, refreshFilters);
+	_tagService.refreshFilters = utilityFunctions.regulateFunc(750, refreshFilters);
 	return _tagService;
 
 });
@@ -724,7 +724,8 @@ Proteus.controller("TaggingController", function($rootScope, $scope, $timeout, u
 	};
 
 	$scope.getTagFontSize = function(count) {
-		var size = ((count/$scope.tagHighScore)*6).toFixed(2);
+		var TAG_FONT_MAXSIZE = 10,
+			size = ((count/$scope.tagHighScore)*TAG_FONT_MAXSIZE).toFixed(2);
 		return {'font-size': size+"em"};
 	};
 
@@ -741,6 +742,14 @@ Proteus.controller("TaggingController", function($rootScope, $scope, $timeout, u
 			$timeout(refreshTags);
 		}
 	});
+
+	$scope.isTagVisible = function(tag) {
+		var ok = true,
+			dontShow = ['deleteme', 'trash', 'mdm'];
+		if (tag.count<=10) { ok = false; }
+		if (dontShow.indexOf(tag.name)>=0) { ok = false; }
+		return ok;
+	};
 
 	function recolorTags() {
 		$scope.tagsCurrentlyVisible.splice(0,1000000);
@@ -1303,9 +1312,7 @@ Proteus.directive('scrubberMousePosition', function () {
 		restrict: 'A',
 		link: function(scope, element, attrs) {
 			$(element).mousemove(function(e) {
-				scope.$apply(function() {
-					scope.model.mouseX = e.offsetX;
-				});
+				scope.model.mouseX = e.offsetX;
 			});
 		}
 	};
@@ -1338,12 +1345,20 @@ Proteus.controller("ScrubberController", function($rootScope, $scope, $timeout, 
 	});
 
 	$scope.refreshThumbs = function() {
-		var photos = flickrTrack.thumbnails[$scope.model.mouseX];
-		if (photos!==undefined) { push(photos); }
+		var photos = flickrTrack.thumbnails[$scope.model.mouseX],
+			filtered;
+		if (photos!==undefined) {
+			filtered = photos.filter(function(p) {
+				return !flickrFactory.blacklist.hasOwnProperty(p.id);
+			});
+			if (filtered.length>0) {
+				push(photos);
+			}
+		}
 	};
 
 	$scope.goToPage = function(goToPage, photoId) {
-		var page, photo, photos, jumpDest;
+		var page, photo, photos;
 		if (photoId!==undefined) {
 			photo = {
 				id: photoId,

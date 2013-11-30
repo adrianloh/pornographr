@@ -93,7 +93,9 @@ Flickr.factory("flickrTrack", function($q, $http, $timeout, flickrAuth) {
 								res = resObj.data,
 								photos = [];
 							if (res.stat==='ok' && res.photos.photo.length>0) {
-								photos = Set.sample(res.photos.photo,5);
+								// Take only ten to conserve space when we stash
+								// it into localStorage
+								photos = Set.sample(res.photos.photo, 10);
 							} else {
 								photos = [{id:'0000000000', url_q: "/img/slip.png"}];
 								ok = false;
